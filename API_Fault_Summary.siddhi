@@ -23,7 +23,7 @@ define stream faultStream(
     requestTimeStamp long
 );
 
-@store(type="rdbms", datasource="SweetFactoryDB")
+@store(type='rdbms', datasource='APIM_ANALYTICS_DB')
 define aggregation faultyAggregation
 from faultStream 
 select api,apiVersion,apiPublisher,apiContext,consumerKey,hostname,applicationName,requestTimeStamp,count() as totalFaultCount

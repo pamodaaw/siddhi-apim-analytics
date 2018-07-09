@@ -16,7 +16,7 @@ define stream throttledOutStream(
     throttledOutReason string
 );
 
-@store(type="rdbms", datasource="SweetFactoryDB") 
+@store(type='rdbms', datasource='APIM_ANALYTICS_DB') 
 define aggregation throttledOutAggregation
 from throttledOutStream
 select api,apiVersion,apiContext,apiPublisher,applicationName,tenantDomain,count() as throttledOutCount,throttledOutReason,throttledOutTimeStamp
