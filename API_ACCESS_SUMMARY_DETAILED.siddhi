@@ -10,18 +10,6 @@ define stream apiUsagePerVersionFilteredStream (apiName string, apiVersion strin
 
 define stream apiUserAgentFilteredStream(apiName string, apiVersion string, apiContext string, apiPublisher string, apiProviderTenantDomain string, operatingSystem string, browser string, requestTimestamp long);
 
-define function getOSFromUserAgent[javascript] return string {
-    var response;
-    if(data[0] == 'os'){
-        var availableOs = ["Linux","Windows", "macOS"];
-        response =  availableOs[Math.floor(Math.random() * availableOs.length)];
-    }else{
-        var availableBrowsers = ["Mozilla","Google", "others"];
-        response = availableBrowsers[Math.floor(Math.random() * availableBrowsers.length)];
-    }
-    return response
-};
-
 -- Aggregations
 
 -- API usage per version summary. (Specific to an application)
