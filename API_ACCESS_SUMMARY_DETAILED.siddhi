@@ -88,5 +88,5 @@ insert current events into apiUsagePerVersionFilteredStream;
 
 
 from request 
-select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, getOSFromUserAgent('os') as operatingSystem, getOSFromUserAgent('browser') as browser, requestTimestamp
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, env:getUserAgentProperty(userAgent,'os') as operatingSystem, env:getUserAgentProperty(userAgent,'browser') as browser, requestTimestamp
 insert current events into apiUserAgentFilteredStream;
