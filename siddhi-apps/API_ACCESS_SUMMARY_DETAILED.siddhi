@@ -1,0 +1,80 @@
+@App:name('API_ACCESS_SUMMARY_DETAILED')
+@App:description('Description of the plan')
+
+-- Streams
+@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.request:3.0.0', 
+	@map(type = 'wso2event'))
+define stream request (meta_clientType string, applicationConsumerKey string, applicationName string, applicationId string, applicationOwner string, apiContext string, apiName string, apiVersion string, apiResourcePath string, apiResourceTemplate string, apiMethod string, apiPublisher string, apiProviderTenantDomain string, apiTier string, apiHostname string, username string, userTenantDomain string, userIp string, userAgent string, requestTimestamp long, throttledOut bool, responseTime long, serviceTime long, backendTime long, responseCacheHit bool, responseSize long, protocol string, responseCode int, destination string, securityLatency long, throttlingLatency long, requestMediationLatency long, responseMediationLatency long, backendLatency long, otherLatency long);
+
+define stream apiUsagePerVersionFilteredStream (apiName string, apiVersion string, apiContext string, apiPublisher string, apiProviderTenantDomain string, apiHostname string, applicationId string, applicationName string, quotaExceededValue int, requestTimestamp long);
+
+define stream apiUserAgentFilteredStream(apiName string, apiVersion string, apiContext string, apiPublisher string, apiProviderTenantDomain string, operatingSystem string, browser string, requestTimestamp long);
+
+-- Aggregations
+
+-- API usage per version summary. (Specific to an application)
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define aggregation ApiUsagePerVersionAggregation 
+from apiUsagePerVersionFilteredStream 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, applicationName, count(apiName) as totalRequestCount, sum(quotaExceededValue) as aboveQuotaCount, requestTimestamp 
+group by apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, applicationId 
+aggregate by requestTimestamp every seconds...years;
+
+-- API usage summary per resource path. (Specific to an application)
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define aggregation ApiUsagePerResourcePathAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, applicationName, apiResourceTemplate, apiMethod, count(apiName) as totalRequestCount, requestTimestamp 
+	group by apiContext, apiPublisher,apiProviderTenantDomain, apiHostname, applicationId, apiResourceTemplate, apiMethod 
+	aggregate by requestTimestamp every seconds...years;
+	
+	
+-- API usage summary per destination.
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define aggregation ApiUsagePerDestinationAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, destination, count(apiName) as totalRequestCount, requestTimestamp 
+group by apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, destination 
+aggregate by requestTimestamp every seconds...years;
+
+-- Overall API usage summary. depends on the user and the application. 
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define aggregation ApiUsageAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, applicationName, username, userTenantDomain, count(apiName) as totalRequestCount, requestTimestamp
+group by apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, applicationId, username, userTenantDomain
+aggregate by requestTimestamp every seconds...years;
+
+-- API last access summary for all the versions
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define aggregation ApiLastAccessAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, username, userTenantDomain, max(requestTimestamp) as lastAccessTime
+group by apiName, apiPublisher, apiProviderTenantDomain, apiHostname
+aggregate by requestTimestamp every seconds...years;
+	
+-- API user browser summary 
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define aggregation ApiUserBrowserAggregation 
+from apiUserAgentFilteredStream 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, operatingSystem, browser, count(apiName) as totalRequestCount, requestTimestamp
+group by apiContext, apiPublisher, apiProviderTenantDomain, operatingSystem, browser
+aggregate by requestTimestamp every seconds...years;
+
+-- API usage execution summary
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define aggregation ApiExecutionTimeAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, avg(responseTime) as responseTime, avg(serviceTime) as serviceTime, avg(backendTime) as backendTime, avg(securityLatency) as securityLatency, avg(throttlingLatency) as throttlingLatency, avg(requestMediationLatency) as requestMediationLatency, avg(responseMediationLatency) as responseMediationLatency, avg(backendLatency) as backendLatency, avg(otherLatency) as otherLatency 
+group by apiContext, apiPublisher, apiProviderTenantDomain, apiHostname
+aggregate by requestTimestamp every seconds...years;
+
+-- Queries
+from request 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, apiHostname, applicationId, applicationName, ifThenElse(throttledOut, 1, 0) as quotaExceededValue, requestTimestamp 
+insert current events into apiUsagePerVersionFilteredStream;
+
+
+from request 
+select apiName, apiVersion, apiContext, apiPublisher, apiProviderTenantDomain, env:getUserAgentProperty(userAgent,'os') as operatingSystem, env:getUserAgentProperty(userAgent,'browser') as browser, requestTimestamp
+insert current events into apiUserAgentFilteredStream;
