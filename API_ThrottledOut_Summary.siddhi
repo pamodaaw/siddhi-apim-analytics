@@ -5,13 +5,15 @@ define stream throttledOutStream(
     metaClientType string,
     accessToken string,
     userId string,
-    tenantDomain string,
+    userTenantDomain string,
+    apiProviderTenantDomain string,
     api string,
     apiVersion string,
     apiPublisher string,
     apiContext string,
     applicationId string,
     applicationName string,
+    subscriber string,	
     throttledOutTimeStamp long,
     throttledOutReason string
 );
@@ -19,7 +21,7 @@ define stream throttledOutStream(
 @store(type='rdbms', datasource='APIM_ANALYTICS_DB') 
 define aggregation throttledOutAggregation
 from throttledOutStream
-select api,apiVersion,apiContext,apiPublisher,applicationName,tenantDomain,count() as throttledOutCount,throttledOutReason,throttledOutTimeStamp
-group by apiContext,apiPublisher,applicationId,userId,tenantDomain,throttledOutReason
+select api,apiVersion,apiContext,apiPublisher,applicationName,apiProviderTenantDomain,subscriber,count() as throttledOutCount,throttledOutReason,throttledOutTimeStamp
+group by apiContext,applicationId,userId,userTenantDomain,throttledOutReason
 aggregate by throttledOutTimeStamp every sec...year;
 
