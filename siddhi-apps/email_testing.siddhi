@@ -1,0 +1,19 @@
+@App:name("email_testing")
+@App:description("Description of the plan")
+
+define stream fooStream( email string);
+
+@sink(type='email', content.type="text/html",
+    @map(type ='text', @payload('message:{{msg}} <br> type:{{type}} <br> alertTimestamp:{{alertTimestamp}}')),subject='Alerts from WSO2 APIM Analytics',to='{{email}}')
+define stream emailStream (email string, type string, msg string, alertTimestamp string);
+
+from fooStream
+select email,  "testAlert" as type, "This is a test alert" as msg, "1531901228604" as alertTimestamp
+insert into emailStream;
+
+
+-- @sink(type='email', @map(type ='json'), username='pamoda.testing', address='pamoda.testing@gmail.com',password='Pamoda@123',subject='Alerts from Wso2 Stream Processor',to='{{email}}')
+-- define stream fooStream (email string, loginId int, name string);
+
+
+
