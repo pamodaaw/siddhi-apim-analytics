@@ -12,10 +12,10 @@ define stream faultStream(
     apiContext string,
     apiResourcePath string,
     apiMethod string,
-    apiPublisher string,
+    apiCreator string,
     userId string,
     userTenantDomain string,
-    apiProviderTenantDomain string,
+    apiCreatorTenantDomain string,
     hostname string,
     applicationId string,
     applicationName string,
@@ -29,6 +29,6 @@ define stream faultStream(
 @store(type='rdbms', datasource='APIM_ANALYTICS_DB')
 define aggregation faultyAggregation
 from faultStream 
-select api,apiVersion,apiPublisher,apiContext,consumerKey,hostname,applicationName,requestTimeStamp,count() as totalFaultCount, gatewayType
-group by apiContext,apiPublisher,apiProviderTenantDomain,applicationId,hostname
+select api,apiVersion,apiCreator,apiContext,consumerKey,hostname,applicationName,requestTimeStamp,count() as totalFaultCount, gatewayType
+group by apiContext,apiCreator,apiCreatorTenantDomain,applicationId,hostname
 aggregate by requestTimeStamp every sec...year;
