@@ -1,0 +1,114 @@
+@App:name('testing')
+
+@App:description("Description of the plan")
+
+define trigger MinTriggerEventStream at every 10 min;
+
+define stream MinTriggerEventStream (triggered_time long);
+define stream request (meta_clientType string, 
+    applicationConsumerKey string, 
+    applicationName string,
+    applicationId string,
+    applicationOwner string, 
+    apiContext string,
+    apiName string,
+    apiVersion string,
+    apiResourcePath string,
+    apiResourceTemplate string,
+    apiMethod string,
+    apiCreator string,
+    apiCreatorTenantDomain string,
+    apiTier string,
+    apiHostname string, 
+    username string,
+    userTenantDomain string,
+    userIp string,
+    userAgent string, 
+    requestTimestamp long,
+    throttledOut bool,
+    responseTime long,
+    serviceTime long,
+    backendTime long,
+    responseCacheHit bool,
+    responseSize long,
+    protocol string,
+    responseCode int,
+    destination string,
+    securityLatency long,
+    throttlingLatency long,
+    requestMediationLatency long,
+    responseMediationLatency long,
+    backendLatency long,
+    otherLatency long, 
+    gatewayType string,
+    label string);
+
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define aggregation ApiExecutionTimeAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, apiResourceTemplate, apiMethod, avg(responseTime) as responseTime, avg(serviceTime) as serviceTime, avg(backendTime) as backendTime, avg(securityLatency) as securityLatency, avg(throttlingLatency) as throttlingLatency, avg(requestMediationLatency) as requestMediationLatency, avg(responseMediationLatency) as responseMediationLatency, avg(backendLatency) as backendLatency, avg(otherLatency) as otherLatency 
+group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, apiResourceTemplate, apiMethod 
+aggregate by requestTimestamp every seconds...years;
+
+@sink(type='email', content.type="text/html",
+    @map(type ='text', @payload('message:{{msg}} <br> type:{{type}} <br> alertTimestamp:{{alertTimestamp}}')),subject='Alerts from WSO2 APIM Analytics',to='{{email}}')
+define stream emailStream (email string, type string, msg string, alertTimestamp long);
+
+@PrimaryKey('apiContext','apiCreator', 'apiCreatorTenantDomain','apiResourceTemplate','apiMethod')
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table RequestPercentile (apiContext string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, responseTimePercentile double, backendTimePercentile double );
+
+
+from MinTriggerEventStream as T join ApiExecutionTimeAggregation as A
+  within "2018-01-01 00:00:00 +05:30", "2019-01-01 00:00:00 +05:30"
+  per "minutes"
+select apiContext, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod, responseTime*1.0 as responseTime, backendTime *1.0 as backendTime
+group by  apiContext, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod
+insert into tempStream;
+
+from tempStream
+select apiContext, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod,math:percentile(responseTime*1.0, 95.0) as responseTimePercentile ,math:percentile(backendTime *1.0,95.0) as backendTimePercentile
+group by  apiContext, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod
+insert into calculatedStream;
+
+from calculatedStream#log("INFO", "Sample Event :", true)
+select *
+insert into barStream;
+
+from calculatedStream
+select apiContext, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod, responseTimePercentile, backendTimePercentile
+update or insert into RequestPercentile
+set RequestPercentile.responseTimePercentile = responseTimePercentile, RequestPercentile.backendTimePercentile = backendTimePercentile
+on RequestPercentile.apiContext == apiContext and RequestPercentile.apiCreator == apiCreator and RequestPercentile.apiCreatorTenantDomain == apiCreatorTenantDomain and RequestPercentile.apiResourceTemplate == apiResourceTemplate and RequestPercentile.apiMethod == apiMethod;
+
+
+from request join RequestPercentile
+on(request.apiContext == RequestPercentile.apiContext and request.apiCreatorTenantDomain == RequestPercentile.apiCreatorTenantDomain and request.apiResourceTemplate == RequestPercentile.apiResourceTemplate and request.apiMethod == RequestPercentile.apiMethod )
+select request.apiName, request.apiVersion, ifThenElse(request.apiCreatorTenantDomain == 'carbon.super', str:concat(request.apiCreator, "@carbon.super"), request.apiCreator) as apiCreator, request.apiCreatorTenantDomain, 
+request.apiResourceTemplate, request.apiMethod, request.responseTime, RequestPercentile.responseTimePercentile , request.backendTime,   RequestPercentile.backendTimePercentile
+insert into responseInfoStream;
+
+@info(name = 'query2')
+from responseInfoStream[responseTime > responseTimePercentile]
+select apiName, apiVersion, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod, responseTime, responseTimePercentile , 'Abnormal response time detected.' as msg, 2 as severity, (time:timestampInMilliseconds()) as alertTimestamp
+insert into abnormalResponseTimeAlertStreamTemp;
+
+@info(name = 'suppression1')
+from abnormalResponseTimeAlertStreamTemp#window.length(1) as a left outer join abnormalResponseTimeAlertStreamTemp#window.time(10 minute) as b
+on (a.apiName == b.apiName and a.apiVersion== b.apiVersion and a.apiCreator== b.apiCreator and a.apiCreatorTenantDomain==b.apiCreatorTenantDomain and a.apiResourceTemplate==b.apiResourceTemplate and a.apiMethod== b.apiMethod and a.msg== b.msg)
+select a.apiName, a.apiVersion, a.apiCreator, a.apiCreatorTenantDomain, a.apiResourceTemplate, a.apiMethod, a.responseTime, a.responseTimePercentile, a.msg as msg, a.severity, a.alertTimestamp
+having b.apiName  is null
+insert into abnormalResponseTimeAlertStream;
+
+
+@info(name = 'query4')
+from abnormalResponseTimeAlertStream
+select 'abnormalResponseTime' as type, apiCreatorTenantDomain, str:concat('Abnormal response time detected for http ',apiMethod,' method of resource template:',apiResourceTemplate,' in api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',responseTimePercentile, 'ms.') as msg, severity, (time:timestampInMilliseconds()) as alertTimestamp
+insert into allApimAlertStream;
+
+
+from allApimAlertStream
+select "pamoda@wso2.com" as email, type, msg, alertTimestamp
+insert into emailStream;
+
+                    
