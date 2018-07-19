@@ -23,8 +23,8 @@ define stream FaultStream(
     protocol string,
     errorCode string,
     errorMessage string,
-    requestTimeStamp long,
-    gatewayType string
+    gatewayType string,
+    requestTimeStamp long
 );
 
 @store(type='rdbms', datasource='APIM_ANALYTICS_DB')
