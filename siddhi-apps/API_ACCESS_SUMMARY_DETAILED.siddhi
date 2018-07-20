@@ -112,5 +112,7 @@ insert current events into apiUsagePerVersionFilteredStream;
 
 
 from request 
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, env:getUserAgentProperty(userAgent,'os') as operatingSystem, env:getUserAgentProperty(userAgent,'browser') as browser, requestTimestamp, gatewayType, label 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, 
+    ifThenElse(userAgent is null, 'Other', env:getUserAgentProperty(userAgent,'os')) as operatingSystem, ifThenElse(userAgent is null, 'Other', env:getUserAgentProperty(userAgent,'browser')) as browser,
+    requestTimestamp, gatewayType, label 
 insert current events into apiUserAgentFilteredStream;
