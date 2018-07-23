@@ -1,0 +1,24 @@
+@App:name("API_ALERT_CONFIG")
+@App:description("Description of the plan")
+
+-- Please refer to https://docs.wso2.com/display/SP400/Quick+Start+Guide on getting started with SP editor. 
+
+@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.alert.configuration:1.0.0', @map(type = 'wso2event'))
+define stream AlertConfigurationStream (
+    apiName string,
+    apiVersion string,
+    apiCreator string,
+    apiCreatorTenantDomain string,
+    thresholdResponseTime long,
+    thresholdBackendTime long,
+    thresholdRequestCountPerMin int);
+    
+@PrimaryKey('apiName', 'apiVersion','apiCreator', 'apiCreatorTenantDomain')
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table ApiAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long,thresholdRequestCountPerMin int);
+
+from AlertConfigurationStream
+select * 
+update or insert into ApiAlertConfiguration
+set ApiAlertConfiguration.thresholdResponseTime = thresholdResponseTime, ApiAlertConfiguration.thresholdBackendTime = thresholdBackendTime, ApiAlertConfiguration.thresholdRequestCountPerMin = thresholdRequestCountPerMin
+on ApiAlertConfiguration.apiName == apiName and ApiAlertConfiguration.apiVersion == apiVersion and ApiAlertConfiguration.apiCreator == apiCreator and ApiAlertConfiguration.apiCreatorTenantDomain == apiCreatorTenantDomain 
