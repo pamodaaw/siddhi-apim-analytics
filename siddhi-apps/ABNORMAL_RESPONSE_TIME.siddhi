@@ -62,22 +62,25 @@ define table ApiAlertConfiguration (apiName string, apiVersion string, apiCreato
 @info(name = 'query1')
 from request join ApiAlertConfiguration
 on(request.apiName == ApiAlertConfiguration.apiName and request.apiVersion == ApiAlertConfiguration.apiVersion and request.apiCreatorTenantDomain == ApiAlertConfiguration.apiCreatorTenantDomain )
-select request.apiName, request.apiVersion, ifThenElse(request.apiCreatorTenantDomain == 'carbon.super', str:concat(request.apiCreator, "@carbon.super"), request.apiCreator) as apiCreator, request.apiCreatorTenantDomain, request.responseTime, ApiAlertConfiguration.thresholdResponseTime
+select request.apiName, request.apiVersion, ifThenElse(request.apiCreatorTenantDomain == 'carbon.super', str:concat(request.apiCreator, "@carbon.super"), request.apiCreator) as apiCreator, request.apiCreatorTenantDomain, 
+    request.responseTime, request.apiResourceTemplate, request.apiMethod, ApiAlertConfiguration.thresholdResponseTime
 insert into responseTimeInfoStream;
 
 @info(name = 'query2')
 from responseTimeInfoStream[responseTime > thresholdResponseTime]
-select apiName, apiVersion, apiCreator, apiCreatorTenantDomain, responseTime, thresholdResponseTime , 'Abnormal response time detected.' as message, 2 as severity, (time:timestampInMilliseconds()) as alertTimestamp
+select apiName, apiVersion, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod, responseTime, thresholdResponseTime , 
+    'Abnormal response time detected.' as message, 2 as severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into abnormalResponseTimeAlertStreamTemp;
 
 @info(name = 'suppression1')
 from abnormalResponseTimeAlertStreamTemp#window.length(1) as a left outer join abnormalResponseTimeAlertStreamTemp#window.time(10 minute) as b
-on (a.apiName == b.apiName and a.apiVersion== b.apiVersion and a.apiCreator== b.apiCreator and a.apiCreatorTenantDomain==b.apiCreatorTenantDomain and a.message== b.message)
-select a.apiName, a.apiVersion, a.apiCreator, a.apiCreatorTenantDomain, a.responseTime, a.thresholdResponseTime, a.message as message, a.severity, a.alertTimestamp
+on (a.apiName == b.apiName and a.apiVersion== b.apiVersion and a.apiCreator== b.apiCreator and a.apiCreatorTenantDomain==b.apiCreatorTenantDomain and 
+    a.apiResourceTemplate==b.apiResourceTemplate and a.apiMethod== b.apiMethod and a.message== b.message)
+select a.apiName, a.apiVersion, a.apiCreator, a.apiCreatorTenantDomain, a.apiResourceTemplate, a.apiMethod, a.responseTime, a.thresholdResponseTime, a.message as message, a.severity, a.alertTimestamp
 having b.apiName  is null
 insert into abnormalResponseTimeAlertStream;
 
 @info(name = 'query3')
 from abnormalResponseTimeAlertStream
-select 'abnormalResponseTime' as type, apiCreatorTenantDomain, str:concat('Abnormal response time detected for api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',thresholdResponseTime, 'ms.') as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
+select 'abnormalResponseTime' as type, apiCreatorTenantDomain, str:concat('Abnormal response time detected for http ',apiMethod,' method of resource template:',apiResourceTemplate,' in api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',thresholdResponseTime, 'ms.') as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into allApimAlertStream;

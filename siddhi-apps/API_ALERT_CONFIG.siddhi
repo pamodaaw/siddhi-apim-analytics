@@ -1,5 +1,5 @@
 @App:name("API_ALERT_CONFIG")
-@App:description("Description of the plan")
+@App:description("Store the alert configurations of each API into the table 'ApiAlertConfiguration' published through the stream 'org.wso2.apimgt.alert.configuration:1.0.0'")
 
 @source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.alert.configuration:1.0.0', @map(type = 'wso2event'))
 define stream AlertConfigurationStream (
