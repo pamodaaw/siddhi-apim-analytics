@@ -1,0 +1,83 @@
+@App:name("ABNORMAL_RESPONSE_TIME")
+@App:description("Identifies the API requests with abnormal response time and add to AllAlertStream and AbnormalResponseTimeAlertStream")
+
+@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.request:3.0.0', @map(type = 'wso2event'))
+define stream request (meta_clientType string, 
+    applicationConsumerKey string, 
+    applicationName string,
+    applicationId string,
+    applicationOwner string, 
+    apiContext string,
+    apiName string,
+    apiVersion string,
+    apiResourcePath string,
+    apiResourceTemplate string,
+    apiMethod string,
+    apiCreator string,
+    apiCreatorTenantDomain string,
+    apiTier string,
+    apiHostname string, 
+    username string,
+    userTenantDomain string,
+    userIp string,
+    userAgent string, 
+    requestTimestamp long,
+    throttledOut bool,
+    responseTime long,
+    serviceTime long,
+    backendTime long,
+    responseCacheHit bool,
+    responseSize long,
+    protocol string,
+    responseCode int,
+    destination string,
+    securityLatency long,
+    throttlingLatency long,
+    requestMediationLatency long,
+    responseMediationLatency long,
+    backendLatency long,
+    otherLatency long, 
+    gatewayType string,
+    label string);
+    
+define stream AbnormalResponseTimeAlertStream(
+    apiName string,
+    apiVersion string,
+    apiCreator string, 
+    apiCreatorTenatnDomain string,
+    apiResourceTemplate string,
+    apiMethod string,
+    responseTime long,
+    thresholdResponseTime long,
+    message string,
+    severity int,
+    alertTimestamp long);
+
+define stream AllApimAlertsStream (type string, tenantDomain string, message string, severity int, alertTimestamp long);
+
+@PrimaryKey('apiName', 'apiVersion','apiCreator', 'apiCreatorTenantDomain')
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table ApiAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long,thresholdRequestCountPerMin int);
+
+@info(name = 'query1')
+from request join ApiAlertConfiguration
+on(request.apiName == ApiAlertConfiguration.apiName and request.apiVersion == ApiAlertConfiguration.apiVersion and request.apiCreatorTenantDomain == ApiAlertConfiguration.apiCreatorTenantDomain )
+select request.apiName, request.apiVersion, ifThenElse(request.apiCreatorTenantDomain == 'carbon.super', str:concat(request.apiCreator, "@carbon.super"), request.apiCreator) as apiCreator, request.apiCreatorTenantDomain, request.responseTime, ApiAlertConfiguration.thresholdResponseTime
+insert into responseTimeInfoStream;
+
+@info(name = 'query2')
+from responseTimeInfoStream[responseTime > thresholdResponseTime]
+select apiName, apiVersion, apiCreator, apiCreatorTenantDomain, responseTime, thresholdResponseTime , 'Abnormal response time detected.' as message, 2 as severity, (time:timestampInMilliseconds()) as alertTimestamp
+insert into abnormalResponseTimeAlertStreamTemp;
+
+@info(name = 'suppression1')
+from abnormalResponseTimeAlertStreamTemp#window.length(1) as a left outer join abnormalResponseTimeAlertStreamTemp#window.time(10 minute) as b
+on (a.apiName == b.apiName and a.apiVersion== b.apiVersion and a.apiCreator== b.apiCreator and a.apiCreatorTenantDomain==b.apiCreatorTenantDomain and a.message== b.message)
+select a.apiName, a.apiVersion, a.apiCreator, a.apiCreatorTenantDomain, a.responseTime, a.thresholdResponseTime, a.message as message, a.severity, a.alertTimestamp
+having b.apiName  is null
+insert into abnormalResponseTimeAlertStream;
+
+@info(name = 'query3')
+from abnormalResponseTimeAlertStream
+select 'abnormalResponseTime' as type, apiCreatorTenantDomain, str:concat('Abnormal response time detected for api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',thresholdResponseTime, 'ms.') as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
+insert into allApimAlertStream;
