@@ -1,22 +1,40 @@
 @App:name("API_ALERT_CONFIG")
 @App:description("Store the alert configurations of each API into the table 'ApiAlertConfiguration' published through the stream 'org.wso2.apimgt.alert.configuration:1.0.0'")
 
-@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.alert.configuration:1.0.0', @map(type = 'wso2event'))
-define stream AlertConfigurationStream (
+@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.creator.alert.configuration:1.0.0', @map(type = 'wso2event'))
+define stream ApiCreatorAlertConfigurationStream (
     apiName string,
     apiVersion string,
     apiCreator string,
     apiCreatorTenantDomain string,
     thresholdResponseTime long,
-    thresholdBackendTime long,
-    thresholdRequestCountPerMin int);
+    thresholdBackendTime long);
     
 @PrimaryKey('apiName', 'apiVersion','apiCreator', 'apiCreatorTenantDomain')
 @store(type = 'rdbms', datasource = 'APIM_TEST')
-define table ApiAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long,thresholdRequestCountPerMin int);
+define table ApiCreatorAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long);
 
-from AlertConfigurationStream
+
+@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.subscriber.alert.configuration:1.0.0', @map(type = 'wso2event'))
+define stream ApiSubscriberAlertConfigurationStream (
+    applicationName string,
+    applicationId string,
+    apiName string,
+    apiVersion string,
+    thresholdRequestCountPerMin int);
+    
+@PrimaryKey('applicationName', 'applicationId','apiName', 'apiVersion')
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table ApiSubscriberAlertConfiguration (applicationName string, applicationId string,apiName string, apiVersion string, thresholdRequestCountPerMin int);
+
+from ApiCreatorAlertConfigurationStream
 select * 
-update or insert into ApiAlertConfiguration
-set ApiAlertConfiguration.thresholdResponseTime = thresholdResponseTime, ApiAlertConfiguration.thresholdBackendTime = thresholdBackendTime, ApiAlertConfiguration.thresholdRequestCountPerMin = thresholdRequestCountPerMin
-on ApiAlertConfiguration.apiName == apiName and ApiAlertConfiguration.apiVersion == apiVersion and ApiAlertConfiguration.apiCreator == apiCreator and ApiAlertConfiguration.apiCreatorTenantDomain == apiCreatorTenantDomain 
+update or insert into ApiCreatorAlertConfiguration
+set ApiCreatorAlertConfiguration.thresholdResponseTime = thresholdResponseTime, ApiCreatorAlertConfiguration.thresholdBackendTime = thresholdBackendTime
+on ApiCreatorAlertConfiguration.apiName == apiName and ApiCreatorAlertConfiguration.apiVersion == apiVersion and ApiCreatorAlertConfiguration.apiCreator == apiCreator and ApiCreatorAlertConfiguration.apiCreatorTenantDomain == apiCreatorTenantDomain;
+
+from ApiSubscriberAlertConfigurationStream
+select *
+update or insert into ApiSubscriberAlertConfiguration 
+set ApiSubscriberAlertConfiguration.thresholdRequestCountPerMin = thresholdRequestCountPerMin
+on ApiSubscriberAlertConfiguration.applicationId == applicationId and ApiSubscriberAlertConfiguration.apiName == apiName and ApiSubscriberAlertConfiguration.apiVersion == apiVersion
