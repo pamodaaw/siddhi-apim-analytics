@@ -18,15 +18,14 @@ define table ApiCreatorAlertConfiguration (apiName string, apiVersion string, ap
 -- Stream and table definition for the alerts configured by the API subscriber
 @source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.subscriber.alert.configuration:1.0.0', @map(type = 'wso2event'))
 define stream ApiSubscriberAlertConfigurationStream (
-    applicationName string,
     applicationId string,
     apiName string,
     apiVersion string,
     thresholdRequestCountPerMin int);
     
-@PrimaryKey('applicationName', 'applicationId','apiName', 'apiVersion')
+@PrimaryKey('applicationId','apiName', 'apiVersion')
 @store(type = 'rdbms', datasource = 'APIM_TEST')
-define table ApiSubscriberAlertConfiguration (applicationName string, applicationId string,apiName string, apiVersion string, thresholdRequestCountPerMin int);
+define table ApiSubscriberAlertConfiguration (applicationId string,apiName string, apiVersion string, thresholdRequestCountPerMin int);
 
 -- Data storing logic
 from ApiCreatorAlertConfigurationStream
