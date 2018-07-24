@@ -1,6 +1,7 @@
 @App:name("API_ALERT_CONFIG")
-@App:description("Store the alert configurations of each API into the table 'ApiAlertConfiguration' published through the stream 'org.wso2.apimgt.alert.configuration:1.0.0'")
+@App:description("Store the alert configurations of each API into two different tables from the two streams published corresponding to alert configurations done by the API creator and the subscriber.")
 
+-- Stream and table definition for the alerts configured by the API creator
 @source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.creator.alert.configuration:1.0.0', @map(type = 'wso2event'))
 define stream ApiCreatorAlertConfigurationStream (
     apiName string,
@@ -14,7 +15,7 @@ define stream ApiCreatorAlertConfigurationStream (
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table ApiCreatorAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long);
 
-
+-- Stream and table definition for the alerts configured by the API subscriber
 @source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.subscriber.alert.configuration:1.0.0', @map(type = 'wso2event'))
 define stream ApiSubscriberAlertConfigurationStream (
     applicationName string,
@@ -27,6 +28,7 @@ define stream ApiSubscriberAlertConfigurationStream (
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table ApiSubscriberAlertConfiguration (applicationName string, applicationId string,apiName string, apiVersion string, thresholdRequestCountPerMin int);
 
+-- Data storing logic
 from ApiCreatorAlertConfigurationStream
 select * 
 update or insert into ApiCreatorAlertConfiguration
