@@ -1,7 +1,9 @@
 @App:name("ABNORMAL_REQUEST_COUNT")
 @App:description("Identifies the API requests with abnormal request count per minute and add to AllAlertStream and AbnormalRequestCountAlertStream")
 
-@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.request:3.0.0', @map(type = 'wso2event'))
+define trigger MinTriggerEventStream at every 1 min;
+define stream MinTriggerEventStream (triggered_time long);
+
 define stream request (meta_clientType string, 
     applicationConsumerKey string, 
     applicationName string,
@@ -40,19 +42,13 @@ define stream request (meta_clientType string,
     gatewayType string,
     label string);
     
-define stream AbnormalRequestsPerMinAlertStream(
-    applicationName	string,
-    applicationOwner	string,
-    tenantDomain string,
-    apiName string,
-    apiVersion string,
-    requestCountPerMin	long,
-    thresholdRequestCountPerMin	int,
-    message	string,
-    severity	int,
-    alertTimestamp	long);
-
-define stream AllApimAlertsStream (type string, tenantDomain string, message string, severity int, alertTimestamp long);
+-- Overall API usage summary. depends on the user and the application. 
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define aggregation ApiUsageAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId, applicationName, applicationOwner, username, userTenantDomain, count(apiName) as totalRequestCount, gatewayType, label 
+group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId, username, userTenantDomain
+aggregate by requestTimestamp every seconds...years;
 
 -- Table definitions
 @PrimaryKey('applicationName', 'applicationId','apiName', 'apiVersion')
@@ -61,12 +57,19 @@ define table ApiSubscriberAlertConfiguration (applicationId string,apiName strin
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table AbnormalRequestsPerMinAlert(applicationName	string, applicationOwner string, tenantDomain string, apiName string,apiVersion string,requestCountPerMin long,   thresholdRequestCountPerMin	int, message string,severity int, alertTimestamp long);
+
+from MinTriggerEventStream#log("INFO", "Sample Event :", true)
+select *
+insert into barStream;
   
--- Queries
--- Count the number of requests per minute
-@info(name='query1') 
-from request#window.externalTimeBatch(requestTimestamp, 1 min, 0, 2 min )
-select applicationName, applicationId, applicationOwner, userTenantDomain as tenantDomain, apiName, apiVersion, count() as requestCountPerMin
+from MinTriggerEventStream 
+select currentTimeMillis() as currentTimestamp, (currentTimeMillis() - 5*60*1000) as endTimestamp
+insert into TriggerInfoStream;
+
+from TriggerInfoStream as T join ApiUsageAggregation as A
+within T.endTimestamp, T.currentTimestamp
+  per "minutes"
+select apiName, apiVersion, applicationId, applicationName, applicationOwner, userTenantDomain as tenantDomain, totalRequestCount as requestCountPerMin, gatewayType, label 
 group by applicationId, apiContext, apiCreator, apiCreatorTenantDomain  
 insert into RequestsPerMinStream;
 
@@ -91,7 +94,7 @@ on (a.applicationName== b.applicationName and a.applicationOwner== b.application
     a.apiName == b.apiName and a.apiVersion == b.apiVersion and a.message == b.message)
 select  a.applicationName, ifThenElse(a.tenantDomain == 'carbon.super', str:concat(a.applicationOwner, "@carbon.super"), a.applicationOwner) as applicationOwner, 
     a.tenantDomain, a.apiName, a.apiVersion, a.requestCountPerMin, a.thresholdRequestCountPerMin, a.message, a.severity, a.alertTimestamp
-having b.apiName  is null
+having b.apiName is null
 insert into AbnormalRequestsPerMinAlertStream ;
 
 @info(name = 'query4')
@@ -102,4 +105,3 @@ insert into allApimAlertStream;
 from AbnormalRequestsPerMinAlertStream
 select *
 insert into AbnormalRequestsPerMinAlert;
-
