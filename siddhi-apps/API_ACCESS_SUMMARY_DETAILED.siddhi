@@ -52,7 +52,7 @@ define stream apiUserAgentFilteredStream(apiName string, apiVersion string, apiC
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define aggregation ApiUsagePerVersionAggregation 
 from apiUsagePerVersionFilteredStream 
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, count(apiName) as totalRequestCount, sum(quotaExceededValue) as aboveQuotaCount, gatewayType, label
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, count(apiName) as totalRequestCount, sum(quotaExceededValue) as aboveQuotaCount, gatewayType, label 
 group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId 
 aggregate by requestTimestamp every seconds...years;
 
@@ -61,8 +61,8 @@ aggregate by requestTimestamp every seconds...years;
 define aggregation ApiUsagePerResourcePathAggregation 
 from request 
 select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, apiResourceTemplate, apiMethod, count(apiName) as totalRequestCount, gatewayType, label 
-group by apiContext, apiCreator,apiCreatorTenantDomain, apiHostname, applicationId, apiResourceTemplate, apiMethod 
-aggregate by requestTimestamp every seconds...years;
+	group by apiContext, apiCreator,apiCreatorTenantDomain, apiHostname, applicationId, apiResourceTemplate, apiMethod 
+	aggregate by requestTimestamp every seconds...years;
 	
 	
 -- API usage summary per destination.
@@ -77,7 +77,7 @@ aggregate by requestTimestamp every seconds...years;
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define aggregation ApiUsageAggregation 
 from request 
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId, applicationName, applicationOwner, username, userTenantDomain, count(apiName) as totalRequestCount, gatewayType, label 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, username, userTenantDomain, count(apiName) as totalRequestCount, gatewayType, label 
 group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId, username, userTenantDomain
 aggregate by requestTimestamp every seconds...years;
 
@@ -101,7 +101,7 @@ aggregate by requestTimestamp every seconds...years;
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define aggregation ApiExecutionTimeAggregation 
 from request 
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, apiResourceTemplate, apiMethod, avg(responseTime) as responseTime, avg(serviceTime) as serviceTime, avg(backendTime) as backendTime, avg(securityLatency) as securityLatency, avg(throttlingLatency) as throttlingLatency, avg(requestMediationLatency) as requestMediationLatency, avg(responseMediationLatency) as responseMediationLatency, avg(backendLatency) as backendLatency, avg(otherLatency) as otherLatency 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, apiResourceTemplate, apiMethod, avg(responseTime) as responseTime, avg(serviceTime) as serviceTime, avg(backendTime) as backendTime, avg(securityLatency) as securityLatency, avg(throttlingLatency) as throttlingLatency, avg(requestMediationLatency) as requestMediationLatency, avg(responseMediationLatency) as responseMediationLatency, avg(backendLatency) as backendLatency, avg(otherLatency) as otherLatency, count() as totalResponseCount 
 group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, apiResourceTemplate, apiMethod 
 aggregate by requestTimestamp every seconds...years;
 
