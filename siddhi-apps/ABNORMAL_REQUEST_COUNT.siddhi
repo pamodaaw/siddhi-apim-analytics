@@ -119,6 +119,6 @@ insert into AbnormalRequestsPerMinAlert;
 @info(name = 'query1')
 from AbnormalRequestsPerMinAlertStream#window.length(1) as A join AlertStakeholderInfo as S
 on ((A.applicationOwner == S.userId and true == S.isSubscriber ) or true == S.isAdmin )
-select 'AbnormalRequestsPerMin' as type , str:concat('Abnormal request count detected during last minute using application ', A.applicationName,' owned by ', A.applicationOwner,' for api :', A.apiName,', abnormal request count:', A.requestCountPerMin, ".") as msg, time:dateFormat(abnormalRequestsPerMinAlert.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, stakeholderInfoTable.emails
-having str:contains(stakeholderInfoTable.alertTypes, 'AbnormalRequestsPerMin')
-insert into emailAlertStream;
+select 'AbnormalRequestsPerMin' as type , str:concat('Abnormal request count detected during last minute using application ', A.applicationName,' owned by ', A.applicationOwner,' for api :', A.apiName,', abnormal request count:', A.requestCountPerMin, ".") as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.email
+having str:contains(S.alertType, 'AbnormalRequestsPerMin')
+insert into EmailAlertStream;
