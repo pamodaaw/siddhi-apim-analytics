@@ -43,10 +43,10 @@ define stream Request (meta_clientType string,
 define stream AbnormalResponseTimeAlertStream( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, responseTime long, thresholdResponseTime long, message string, severity int,alertTimestamp long);
 
 @sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
-define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, email	string);
+define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, emails	string);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
-define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+define table AlertStakeholderInfo(userId string, alertTypes	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table ApiCreatorAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long);
@@ -93,7 +93,7 @@ insert into AbnormalResponseTimeAlert;
 @info(name = 'customizeEmailMessageGenerateQuery')
 from AbnormalResponseTimeAlertStream#window.length(1) as A join AlertStakeholderInfo as S
 on ((A.apiCreator == S.userId and true == S.isPublisher ) or true == S.isAdmin )
-select 'AbnormalResponseTime' as type , str:concat('Abnormal response time detected for http ',A.apiMethod,' method of resource template:',A.apiResourceTemplate,' in api:',A.apiName,' of tenant domain:',A.apiCreatorTenantDomain,', threshold value:',A.thresholdResponseTime, 'ms.') as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.email
-having str:contains(S.alertType, 'AbnormalResponseTime')
+select 'AbnormalResponseTime' as type , str:concat('Abnormal response time detected for http ',A.apiMethod,' method of resource template:',A.apiResourceTemplate,' in api:',A.apiName,' of tenant domain:',A.apiCreatorTenantDomain,', threshold value:',A.thresholdResponseTime, 'ms.') as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.emails
+having str:contains(S.alertTypes, 'AbnormalResponseTime')
 insert into EmailAlertStream;
 
