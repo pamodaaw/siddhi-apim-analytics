@@ -41,41 +41,45 @@ define stream Request (meta_clientType string,
     gatewayType string,
     label string);
 
+@sink(type='inMemory', topic='ALL_ALERT', @map(type='passThrough'))
 define stream AllApimAlertsStream (type string, tenantDomain string, message string, severity int, alertTimestamp long);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table RequestPatternChangedAlert (username string, applicationName string, applicationOwner string, tenantDomain string, message string, severity int, alertTimestamp long);
 
+@info(name='stateStreamGenerateQuery') 
 from Request
 select  userTenantDomain as tenantDomain, username,  applicationConsumerKey, applicationName, applicationOwner, str:concat(apiMethod,' ',apiContext,' ',apiResourceTemplate) as state,time:dateFormat(requestTimestamp, 'yyyy-MM-dd HH:mm:ss') as requestTimestamp
 insert into StateStream;
 
+@info(name='markovChaniGenerateQuery') 
 from StateStream#markov:markovChain(username, state, 60 min, 0.2, 1, true)
 select lastState as startState, transitionProbability, notify, state as endState, tenantDomain, username, applicationConsumerKey, applicationName, applicationOwner, requestTimestamp
 insert into TransitionProbabilityStream;
 
-@info(name = 'query5')
+@info(name = 'abnormalPatternFilterQuery')
 from TransitionProbabilityStream [ notify ]
 select username, requestTimestamp,  str:concat(startState,' to ',endState) as transition, transitionProbability, applicationConsumerKey, applicationName, applicationOwner, tenantDomain
 insert into IntermediateFraudStream;
 
-@info(name = 'query6')
+@info(name = 'detailedAlertGenerateQuery')
 from IntermediateFraudStream
 select username, applicationName, applicationOwner, tenantDomain, str:concat('Abnormal request pattern detected.' ,' Suspicious API transition is: ',transition) as message , transition, (time:timestampInMilliseconds()) as alertTimestamp
 insert into RequestPatternChangedStreamTemp;
 
-@info(name = 'suppression1')
+@info(name = 'repeatedAlertIgnoreQuery')
 from RequestPatternChangedStreamTemp#window.length(1) as a left outer join RequestPatternChangedStreamTemp#window.time(10 minute) as b
 on ( a.username == b.username and a.applicationName == b.applicationName and a.applicationOwner == b.applicationOwner and a.tenantDomain == b.tenantDomain and a.message == b.message)
 select a.username, a.applicationName, a.applicationOwner, a.tenantDomain, a.message, a.transition, a.alertTimestamp
 having b.username  is null
 insert into RequestPatternChangedAlertStream;
 
-@info(name = 'query11')
+@info(name = 'commonAlertGenerateQuery')
 from RequestPatternChangedAlertStream
 select 'RequestPatternChanged' as type, tenantDomain, str:concat('Abnormal request pattern detected by user :',username,' using application : ',applicationName, ' owned by: ',applicationOwner, ' suspicious API transition is: ',transition, '.') as message, 1 as severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into AllApimAlertsStream;
 
+@info(name='dbInsertQuery') 
 from RequestPatternChangedAlertStream
 select username, applicationName, applicationOwner, tenantDomain, message, 1 as severity, alertTimestamp
 insert into RequestPatternChangedAlert;
