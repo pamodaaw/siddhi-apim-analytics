@@ -40,6 +40,12 @@ define stream Request (meta_clientType string,
     otherLatency long, 
     gatewayType string,
     label string);
+    
+@sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
+define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, email	string);
+
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
@@ -74,7 +80,7 @@ select a.username, a.applicationName, a.applicationOwner, a.tenantDomain, a.mess
 having b.username  is null
 insert into RequestPatternChangedAlertStream;
 
-@info(name = 'commonAlertGenerateQuery')
+@info(name = 'commonAlertDabaseInsertQuery')
 from RequestPatternChangedAlertStream
 select 'RequestPatternChanged' as type, tenantDomain, str:concat('Abnormal request pattern detected by user :',username,' using application : ',applicationName, ' owned by: ',applicationOwner, ' suspicious API transition is: ',transition, '.') as message, 1 as severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into AllApimAlert;
@@ -84,3 +90,9 @@ from RequestPatternChangedAlertStream
 select username, applicationName, applicationOwner, tenantDomain, message, 1 as severity, alertTimestamp
 insert into RequestPatternChangedAlert;
 
+@info(name = 'customizeEmailMessageGenerateQuery')
+from RequestPatternChangedAlertStream#window.length(1) as A join AlertStakeholderInfo as S
+on ((A.applicationOwner == S.userId and true == S.isSubscriber ) or true == S.isAdmin )
+select 'RequestPatternChanged' as type , str:concat(A.message,  ' by user :',A.username,' using application : ',A.applicationName, ' owned by: ',A.applicationOwner, '.') as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.email
+having str:contains(S.alertType, 'RequestPatternChanged')
+insert into EmailAlertStream;

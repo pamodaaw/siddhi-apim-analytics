@@ -42,12 +42,17 @@ define stream Request (meta_clientType string,
     
 define stream AbnormalResponseTimeAlertStream( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, responseTime long, thresholdResponseTime long, message string, severity int,alertTimestamp long);
 
-@store(type = 'rdbms', datasource = 'APIM_TEST')
-define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
+@sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
+define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, email	string);
 
-@PrimaryKey('apiName', 'apiVersion','apiCreator', 'apiCreatorTenantDomain')
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table ApiCreatorAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long);
+
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table AbnormalResponseTimeAlert( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, 
@@ -75,12 +80,20 @@ select a.apiName as apiName, a.apiVersion as apiVersion, a.apiCreator as apiCrea
 having b.apiName  is null
 insert into AbnormalResponseTimeAlertStream;
 
-@info(name = 'commonAlertGenerateQuery')
+@info(name = 'commonAlertDabaseInsertQuery')
 from AbnormalResponseTimeAlertStream
-select 'abnormalResponseTime' as type, apiCreatorTenantDomain as tenantDomain, str:concat('Abnormal response time detected for http ',apiMethod,' method of resource template:',apiResourceTemplate,' in api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',thresholdResponseTime, 'ms.') as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
+select 'AbnormalResponseTime' as type, apiCreatorTenantDomain as tenantDomain, str:concat('Abnormal response time detected for http ',apiMethod,' method of resource template:',apiResourceTemplate,' in api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',thresholdResponseTime, 'ms.') as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into AllApimAlert;
 
 @info(name='dbInsertQuery') 
 from AbnormalResponseTimeAlertStream
 select *
 insert into AbnormalResponseTimeAlert;
+
+@info(name = 'customizeEmailMessageGenerateQuery')
+from AbnormalResponseTimeAlertStream#window.length(1) as A join AlertStakeholderInfo as S
+on ((A.apiCreator == S.userId and true == S.isPublisher ) or true == S.isAdmin )
+select 'AbnormalResponseTime' as type , str:concat('Abnormal response time detected for http ',A.apiMethod,' method of resource template:',A.apiResourceTemplate,' in api:',A.apiName,' of tenant domain:',A.apiCreatorTenantDomain,', threshold value:',A.thresholdResponseTime, 'ms.') as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.email
+having str:contains(S.alertType, 'AbnormalResponseTime')
+insert into EmailAlertStream;
+
