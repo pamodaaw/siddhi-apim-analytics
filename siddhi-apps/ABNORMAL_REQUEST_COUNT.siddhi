@@ -48,10 +48,10 @@ define stream Request (meta_clientType string,
 
 -- Table definitions
 @sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
-define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, email	string);
+define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, emails	string);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
-define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+define table AlertStakeholderInfo(userId string, alertTypes	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table ApiSubscriberAlertConfiguration (applicationId string,apiName string, apiVersion string, thresholdRequestCountPerMin int);
@@ -119,6 +119,7 @@ insert into AbnormalRequestsPerMinAlert;
 @info(name = 'query1')
 from AbnormalRequestsPerMinAlertStream#window.length(1) as A join AlertStakeholderInfo as S
 on ((A.applicationOwner == S.userId and true == S.isSubscriber ) or true == S.isAdmin )
-select 'AbnormalRequestsPerMin' as type , str:concat('Abnormal request count detected during last minute using application ', A.applicationName,' owned by ', A.applicationOwner,' for api :', A.apiName,', abnormal request count:', A.requestCountPerMin, ".") as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.email
-having str:contains(S.alertType, 'AbnormalRequestsPerMin')
+select 'AbnormalRequestsPerMin' as type , str:concat('Abnormal request count detected during last minute using application ', A.applicationName,' owned by ', A.applicationOwner,' for api :', A.apiName,', abnormal request count:', A.requestCountPerMin, ".") as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.emails
+having str:contains(S.alertTypes, 'AbnormalRequestsPerMin')
 insert into EmailAlertStream;
+
