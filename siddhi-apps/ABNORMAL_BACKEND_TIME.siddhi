@@ -42,8 +42,8 @@ define stream request (meta_clientType string,
     
 define stream AbnormalBackendTimeAlertStream( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long, message string, severity int,alertTimestamp long);
 
-@sink(type='inMemory', topic='ALL_ALERT', @map(type='passThrough'))
-define stream AllApimAlertsStream (type string, tenantDomain string, message string, severity int, alertTimestamp long);
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table AbnormalBackendTimeAlert (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long,
@@ -77,7 +77,7 @@ insert into AbnormalBackendTimeAlertStream;
 @info(name = 'commonAlertGenerateQuery')
 from AbnormalBackendTimeAlertStream
 select 'abnormalBackendTime' as type, apiCreatorTenantDomain as tenantDomain, str:concat('Abnormal backend time detected for http ',apiMethod,' method of resource template:',apiResourceTemplate,' in api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',thresholdBackendTime, 'ms.') as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
-insert into AllApimAlertsStream;
+insert into AllApimAlert;
 
 @info(name='dbInsertQuery') 
 from AbnormalBackendTimeAlertStream

@@ -41,8 +41,8 @@ define stream Request (meta_clientType string,
     gatewayType string,
     label string);
 
-@sink(type='inMemory', topic='ALL_ALERT', @map(type='passThrough'))
-define stream AllApimAlertsStream (type string, tenantDomain string, message string, severity int, alertTimestamp long);
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
 define table RequestPatternChangedAlert (username string, applicationName string, applicationOwner string, tenantDomain string, message string, severity int, alertTimestamp long);
@@ -77,7 +77,7 @@ insert into RequestPatternChangedAlertStream;
 @info(name = 'commonAlertGenerateQuery')
 from RequestPatternChangedAlertStream
 select 'RequestPatternChanged' as type, tenantDomain, str:concat('Abnormal request pattern detected by user :',username,' using application : ',applicationName, ' owned by: ',applicationOwner, ' suspicious API transition is: ',transition, '.') as message, 1 as severity, (time:timestampInMilliseconds()) as alertTimestamp
-insert into AllApimAlertsStream;
+insert into AllApimAlert;
 
 @info(name='dbInsertQuery') 
 from RequestPatternChangedAlertStream
