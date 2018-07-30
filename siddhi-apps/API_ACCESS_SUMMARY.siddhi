@@ -96,7 +96,7 @@ select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiH
 group by apiContext, apiHostname, apiResourceTemplate, apiMethod
 aggregate by requestTimestamp every seconds...years;
 
-@store(type = 'rdbms', datasource = 'APIM_TEST')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 @primaryKey('apiName','apiCreatorTenantDomain','apiHostName', 'gatewayType','label')
 define table ApiLastAccessSummary (apiContext string, apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiHostname string, applicationOwner string, tenantDomain string, lastAccessTime long, gatewayType string, label string );
 
