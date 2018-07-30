@@ -2,7 +2,7 @@
 @App:description("Identifies the API requests with abnormal backend time and add to AllAlertStream and AbnormalBackendTimeAlertStream")
 
 @source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.request:3.0.0', @map(type = 'wso2event'))
-define stream request (meta_clientType string, 
+define stream Request (meta_clientType string, 
     applicationConsumerKey string, 
     applicationName string,
     applicationId string,
@@ -58,11 +58,11 @@ define table AllApimAlert (type string, tenantDomain string, message string, sev
 define table AbnormalBackendTimeAlert (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long,
     message string, severity int, alertTimestamp long);
 
-@info(name = 'configurationInfoRetrievQuery')
-from request join ApiCreatorAlertConfiguration
-on(request.apiName == ApiCreatorAlertConfiguration.apiName and request.apiVersion == ApiCreatorAlertConfiguration.apiVersion and request.apiCreatorTenantDomain == ApiCreatorAlertConfiguration.apiCreatorTenantDomain )
-select request.apiName, request.apiVersion, ifThenElse(request.apiCreatorTenantDomain == 'carbon.super', str:concat(request.apiCreator, "@carbon.super"), request.apiCreator) as apiCreator, request.apiCreatorTenantDomain, 
-    request.backendTime, request.apiResourceTemplate, request.apiMethod, ApiCreatorAlertConfiguration.thresholdBackendTime
+@info(name = 'configurationInfoRetrieveQuery')
+from Request as R join ApiCreatorAlertConfiguration as C
+on(R.apiName == C.apiName and R.apiVersion == C.apiVersion and R.apiCreatorTenantDomain == C.apiCreatorTenantDomain )
+select R.apiName, R.apiVersion, ifThenElse(R.apiCreatorTenantDomain == 'carbon.super', str:concat(R.apiCreator, "@carbon.super"), R.apiCreator) as apiCreator, R.apiCreatorTenantDomain, 
+    R.backendTime, R.apiResourceTemplate, R.apiMethod, C.thresholdBackendTime
 insert into BackendTimeInfoStream;
 
 @info(name = 'backendTimeExceedFilterQuery')

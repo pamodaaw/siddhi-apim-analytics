@@ -2,12 +2,19 @@
 @App:description('Send email to all the subscribers of a particular alert') 
 
 @source(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
-@sink(type='email', content.type="text/html", @map(type ='text', @payload('<strong>Message:</strong>{{message}} <br><br> <strong>Type:</strong>{{type}} <br><br> <strong>AlertTimestamp:</strong>{{alertTimestamp}}')),subject='Alerts from WSO2 APIM Analytics',to='{{emails}}')
 define stream EmailAlertStream (
     type	string, 
     message	string, 
     alertTimestamp	string, 
     emails	string);
 
-
+@sink(type='email', content.type="text/html", @map(type ='text', @payload('<strong>Message:</strong>{{message}} <br><br> <strong>Type:</strong>{{type}} <br><br> <strong>AlertTimestamp:</strong>{{alertTimestamp}}')),subject='Alerts from WSO2 APIM Analytics',to='{{emails}}')
+define stream EmailNotificationStream (
+    type	string, 
+    message	string, 
+    alertTimestamp	string, 
+    emails	string);
    
+from EmailAlertStream
+select *
+insert into EmailNotificationStream;
