@@ -10,11 +10,11 @@ define stream EmailAlertStream (
 
 @sink(type='email', content.type="text/html", @map(type ='text', @payload('<strong>Message:</strong>{{message}} <br><br> <strong>Type:</strong>{{type}} <br><br> <strong>AlertTimestamp:</strong>{{alertTimestamp}}')),subject='Alerts from WSO2 APIM Analytics',to='{{emails}}')
 define stream EmailNotificationStream (
-    type	string, 
-    message	string, 
-    alertTimestamp	string, 
+    type	string,
+    message	string,
+    alertTimestamp	string,
     emails	string);
-   
+
 from EmailAlertStream
 select *
 insert into EmailNotificationStream;

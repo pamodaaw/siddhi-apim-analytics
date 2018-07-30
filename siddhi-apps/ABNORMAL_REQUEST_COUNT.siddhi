@@ -121,3 +121,4 @@ on ((A.applicationOwner == S.userId and true == S.isSubscriber ) or true == S.is
 select 'AbnormalRequestsPerMin' as type , str:concat('Abnormal request count detected during last minute using application ', A.applicationName,' owned by ', A.applicationOwner,' for api :', A.apiName,', abnormal request count:', A.requestCountPerMin, ".") as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.emails
 having str:contains(S.alertTypes, 'AbnormalRequestsPerMin')
 insert into EmailAlertStream;
+
