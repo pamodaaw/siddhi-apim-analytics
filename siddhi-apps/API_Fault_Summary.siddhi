@@ -28,8 +28,8 @@ define stream FaultStream(
 );
 
 @store(type='rdbms', datasource='APIM_ANALYTICS_DB')
-define aggregation FaultyAggregation
+define aggregation ApiFaultyInvocationAgg
 from FaultStream 
-select applicationConsumerKey,api,apiVersion,apiCreator,apiCreatorTenantDomain,apiContext,hostname,applicationName,count() as totalFaultCount, gatewayType
-group by apiContext,applicationId,hostname
+select api,apiVersion,apiCreator,apiContext,applicationConsumerKey,hostname,applicationName,requestTimeStamp,count() as totalFaultCount, gatewayType
+group by apiContext,apiCreator,apiCreatorTenantDomain,applicationId,hostname
 aggregate by requestTimeStamp every sec...year;

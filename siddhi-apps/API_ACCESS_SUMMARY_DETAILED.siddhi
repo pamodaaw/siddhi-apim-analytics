@@ -50,9 +50,9 @@ define stream apiUserAgentFilteredStream(apiName string, apiVersion string, apiC
 
 -- API usage per version summary. (Specific to an application)
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
-define aggregation ApiUsagePerVersionAggregation 
+define aggregation ApiUsagePerVersionPerApplicationAggregation 
 from apiUsagePerVersionFilteredStream 
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, count(apiName) as totalRequestCount, sum(quotaExceededValue) as aboveQuotaCount, gatewayType, label 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, count() as totalRequestCount, sum(quotaExceededValue) as aboveQuotaCount, gatewayType, label 
 group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId 
 aggregate by requestTimestamp every seconds...years;
 
@@ -60,17 +60,17 @@ aggregate by requestTimestamp every seconds...years;
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define aggregation ApiUsagePerResourcePathAggregation 
 from request 
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, apiResourceTemplate, apiMethod, count(apiName) as totalRequestCount, gatewayType, label 
-	group by apiContext, apiCreator,apiCreatorTenantDomain, apiHostname, applicationId, apiResourceTemplate, apiMethod 
-	aggregate by requestTimestamp every seconds...years;
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, apiResourceTemplate, apiMethod, count() as totalRequestCount, gatewayType, label 
+group by apiContext, apiCreator,apiCreatorTenantDomain, apiHostname, applicationId, apiResourceTemplate, apiMethod 
+aggregate by requestTimestamp every seconds...years;
 	
 	
 -- API usage summary per destination.
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define aggregation ApiUsagePerDestinationAggregation 
 from request 
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, destination, count(apiName) as totalRequestCount, gatewayType, label  
-group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, destination 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, destination, count() as totalRequestCount, gatewayType, label  
+group by apiContext,  apiHostname, destination 
 aggregate by requestTimestamp every seconds...years;
 
 -- Overall API usage summary. depends on the user and the application. 
