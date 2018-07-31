@@ -41,7 +41,8 @@ define stream Request (meta_clientType string,
     backendLatency long,
     otherLatency long, 
     gatewayType string,
-    label string);
+    label string
+    );
     
 @PrimaryKey('apiName', 'apiVersion','apiCreator', 'apiCreatorTenantDomain')
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
@@ -59,7 +60,7 @@ define table AlertTableResponseInfo (tenantApiVersion string, count int);
 define table ApiAvailabilityTable (apiName string,apiVersion string, tenantDomain string, status string);
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
-define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+define table AlertStakeholderInfo(userId string, alertType	string, emails string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 --@sink(type="log")    
 define stream ResponseInfoStream(apiName string, apiVersion string, apiContext string,apiCreator string, apiCreatorTenantDomain string,responseCode int, responseTime long,thresholdResponseTime long );    
@@ -136,7 +137,7 @@ on ApiAvailabilityTable.apiName==apiName and ApiAvailabilityTable.apiVersion==ap
 
 from ApiHealthMonitorAlertStreamTemp#window.length(1) join AlertStakeholderInfo
 on ((ApiHealthMonitorAlertStreamTemp.apiCreator == AlertStakeholderInfo.userId and true == AlertStakeholderInfo.isPublisher ) or true == AlertStakeholderInfo.isAdmin )
-select 'healthAvailabilityPerMin' as type , str:concat('API:', apiName,' ',apiVersion, '-', msg) as msg, time:dateFormat(ApiHealthMonitorAlertStreamTemp.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, AlertStakeholderInfo.email
+select 'healthAvailabilityPerMin' as type , str:concat('API:', apiName,' ',apiVersion, '-', msg) as msg, time:dateFormat(ApiHealthMonitorAlertStreamTemp.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, AlertStakeholderInfo.emails
 having str:contains(AlertStakeholderInfo.alertType, 'healthAvailabilityPerMin')
 insert into EmailAlertStream;
 

@@ -1,14 +1,14 @@
 @App:name("FREQUENT_TIER_LIMIT_HITTING_ALERT")
 @App:description("Description of the plan")
 
-@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.throttle:3.0.0', 
-	@map(type = 'wso2event'))
+/*@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.throttle:3.0.0', 
+	@map(type = 'wso2event'))*/
 define stream ThrottledOutStream(
     metaClientType string,
     accessToken string,
     username string,
     userTenantDomain string,
-    api string,
+    apiName string,
     apiVersion string,
     apiContext string,
     apiCreator string,
@@ -21,38 +21,62 @@ define stream ThrottledOutStream(
     throttledOutTimeStamp long
 );
 
+@store(type='rdbms', datasource='APIM_ANALYTICS_DB') 
+define aggregation ApiThrottledOutAgg
+from ThrottledOutStream
+select apiName,apiVersion,apiContext,apiCreator,apiCreatorTenantDomain,username,userTenantDomain,applicationId,applicationName,subscriber,count() as throttledOutCount,throttledOutReason,gatewayType
+group by apiContext,applicationId,throttledOutReason
+aggregate by throttledOutTimeStamp every sec...year;
+
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
 
-@store(type = 'rdbms', datasource = 'APIM_TEST')
-define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define table AlertStakeholderInfo(userId string, alertType	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
-@sink(type='log')
-define stream TemporarySubscriberStream(apiCreator string,api string, apiVersion string,applicationId string,applicationName string, apiCreatorTenantDomain string, userTenantDomain string, subscriber string, numHits long ); 
+define stream TemporarySubscriberStream(apiCreator string,apiName string, apiVersion string,applicationId string,applicationName string, apiCreatorTenantDomain string, userTenantDomain string, subscriber string, numHits long ); 
 
-@sink(type='log')
-define stream TierLimitHittingAlertStream (subscriber string, apiCreator string, api string, applicationId string, applicationName string, apiCreatorTenantDomain string, userTenantDomain string, msg string, severity int, alertTimestamp long);
+@sink(type='log') 
+define stream TierLimitHittingAlertStream (subscriber string, apiCreator string, apiName string, applicationId string, applicationName string, apiCreatorTenantDomain string, userTenantDomain string, msg string, severity int, alertTimestamp long);
+
+@sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
+define stream EmailAlertStream (type string, message	string, alertTimestamp	string, emails	string);
+
+define trigger DayTrigger at every 1 days;
+
+from DayTrigger 
+select currentTimeMillis() as currentTimestamp, (currentTimeMillis() - 24*60*60*1000) as endTimestamp
+insert into TriggerInfoStream;
+
+@info(name='requestsPerMinCountingQuery') 
+from TriggerInfoStream as T join ApiThrottledOutAgg as TA
+within T.endTimestamp, T.currentTimestamp
+  per "days"
+select apiName, apiVersion, applicationId, applicationName,apiCreator, apiCreatorTenantDomain,username,userTenantDomain,subscriber,throttledOutCount,throttledOutReason
+group by applicationId, apiContext, apiCreator, apiCreatorTenantDomain  
+insert into ThrottledOutTriggerStream;
 
 @info(name = 'query1')
-from ThrottledOutStream[throttledOutReason == 'SUBSCRIPTION_LIMIT_EXCEEDED']#window.time(1 day)
-select apiCreator, api, apiVersion, applicationId, applicationName,apiCreatorTenantDomain,userTenantDomain, subscriber, count(username) as numHits
+from ThrottledOutTriggerStream[throttledOutReason == 'SUBSCRIPTION_LIMIT_EXCEEDED']
+select apiCreator, apiName, apiVersion, applicationId, applicationName,apiCreatorTenantDomain,userTenantDomain, subscriber, throttledOutCount as numHits
 group by apiCreator, apiVersion, applicationId
 having numHits > 10
 insert into TemporarySubscriberStream;
 
 @info(name = 'query2')
-from ThrottledOutStream[throttledOutReason == 'APPLICATION_LIMIT_EXCEEDED']#window.time( 1 day )
-select username, apiCreator, api, apiVersion, applicationId, applicationName, 
-apiCreatorTenantDomain,userTenantDomain, subscriber, count(username) as numHits
+from ThrottledOutTriggerStream[throttledOutReason == 'APPLICATION_LIMIT_EXCEEDED']
+select username, apiCreator, apiName, apiVersion, applicationId, applicationName, 
+apiCreatorTenantDomain,userTenantDomain, subscriber, throttledOutCount as numHits
 group by username, apiVersion, applicationId
 having numHits > 10
-insert into TemporaryUserStream;
 
+
+insert into TemporaryUserStream;
 
 @info(name = 'query3')
 from TemporarySubscriberStream#window.length(1) as a left outer join TemporarySubscriberStream#window.time(10 minute) as b
 on (a.apiCreator== b.apiCreator and a.apiVersion== b.apiVersion and a.applicationId==b.applicationId)
-select ifThenElse(a.apiCreatorTenantDomain == 'carbon.super', str:concat(a.apiCreator, "@carbon.super"), a.apiCreator) as apiCreator, a.api, a.apiVersion, a.applicationId, a.applicationName, a.apiCreatorTenantDomain,a.userTenantDomain,
+select ifThenElse(a.apiCreatorTenantDomain == 'carbon.super', str:concat(a.apiCreator, "@carbon.super"), a.apiCreator) as apiCreator, a.apiName, a.apiVersion, a.applicationId, a.applicationName, a.apiCreatorTenantDomain,a.userTenantDomain,
 ifThenElse(a.userTenantDomain == 'carbon.super', str:concat(a.subscriber, "@carbon.super"), a.subscriber) as subscriber, a.numHits
 having b.apiCreator is null
 insert into SuppressedTemporarySubscriberStream ;
@@ -60,7 +84,7 @@ insert into SuppressedTemporarySubscriberStream ;
 @info(name = 'query4')
 from TemporaryUserStream#window.length(1) as a left outer join TemporaryUserStream#window.time(10 minute) as b
 on (a.username== b.username and a.apiVersion== b.apiVersion and a.applicationId==b.applicationId)
-select a.username, ifThenElse(a.apiCreatorTenantDomain == 'carbon.super', str:concat(a.apiCreator, "@carbon.super"), a.apiCreator) as apiCreator, a.api, a.apiVersion, a.applicationId, a.applicationName, a.apiCreatorTenantDomain, a.userTenantDomain,
+select a.username, ifThenElse(a.apiCreatorTenantDomain == 'carbon.super', str:concat(a.apiCreator, "@carbon.super"), a.apiCreator) as apiCreator, a.apiName, a.apiVersion, a.applicationId, a.applicationName, a.apiCreatorTenantDomain, a.userTenantDomain,
 ifThenElse(a.userTenantDomain == 'carbon.super', str:concat(a.subscriber, "@carbon.super"), a.subscriber) as subscriber, a.numHits
 having b.username is null
 insert into SuppressedTemporaryUserStream;
@@ -68,12 +92,12 @@ insert into SuppressedTemporaryUserStream;
 /* send to the alert stream specific to this scenario */
 @info(name = 'query5')
 from SuppressedTemporarySubscriberStream
-select subscriber, apiCreator, api, applicationId, applicationName, apiCreatorTenantDomain,userTenantDomain, "Application frequently goes beyond the allocated quota when accessing an api." as msg, 3 as severity, (time:timestampInMilliseconds()) as alertTimestamp
+select subscriber, apiCreator, apiName, applicationId, applicationName, apiCreatorTenantDomain,userTenantDomain, "Application frequently goes beyond the allocated quota when accessing an api." as msg, 3 as severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into TierLimitHittingAlertStream;
 
 @info(name = 'query6')
 from SuppressedTemporaryUserStream
-select subscriber, apiCreator, api, applicationId, applicationName, apiCreatorTenantDomain, userTenantDomain, str:concat("User ", username, " frequently crosses the limit set.") as msg, 3 as severity, (time:timestampInMilliseconds()) as alertTimestamp
+select subscriber, apiCreator, apiName, applicationId, applicationName, apiCreatorTenantDomain, userTenantDomain, str:concat("User ", username, " frequently crosses the limit set.") as msg, 3 as severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into TierLimitHittingAlertStream;
 
 /* send to general alert stream */
@@ -90,10 +114,17 @@ insert into AllApimAlert;
 from TierLimitHittingAlertStream#window.length(1) as TL join AlertStakeholderInfo as ASI
 on ((TL.subscriber == ASI.userId and true == ASI.isSubscriber ) or true == ASI.isAdmin )
 select 'FrequentTierHittingAlert' as type ,
-ifThenElse(str:contains(TL.msg, 'Application frequently goes beyond the allocated quota'),str:concat("The application ", TL.applicationName, " owned by ", TL.subscriber, " frequently goes beyond the allocated quota when accessing the ", TL.api," API."),
-str:concat(TL.msg , " Using the ", TL.applicationName, " application owned by ",TL.subscriber, ".")) as msg, time:dateFormat(TL.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp,ASI.email
+ifThenElse(str:contains(TL.msg, 'Application frequently goes beyond the allocated quota'),str:concat("The application ", TL.applicationName, " owned by ", TL.subscriber, " frequently goes beyond the allocated quota when accessing the ", TL.apiName," API."),
+str:concat(TL.msg , " Using the ", TL.applicationName, " application owned by ",TL.subscriber, ".")) as message, time:dateFormat(TL.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp,ASI.emails
 having  str:contains(ASI.alertType, 'FrequentTierHittingAlert')
-insert into emailAlertStream;
+insert into EmailAlertStream;
+
+
+
+
+
+
+
 
 
 
