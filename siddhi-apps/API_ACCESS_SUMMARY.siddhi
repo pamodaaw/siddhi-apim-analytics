@@ -76,7 +76,7 @@ aggregate by requestTimestamp every seconds...years;
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define aggregation ApiUserPerAppAgg
 from Request
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId, applicationName, applicationOwner, username, userTenantDomain, count(apiName) as totalRequestCount, gatewayType, label
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId, applicationName, applicationOwner, username, userTenantDomain, count() as totalRequestCount, gatewayType, label
 group by apiContext,apiHostname, applicationId, username, userTenantDomain
 aggregate by requestTimestamp every seconds...years;
 
@@ -84,7 +84,7 @@ aggregate by requestTimestamp every seconds...years;
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define aggregation ApiUserBrowserAgg
 from ApiUserAgentFilteredStream
-select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, operatingSystem, browser, count(apiName) as totalRequestCount, gatewayType, label 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, operatingSystem, browser, count() as totalRequestCount, gatewayType, label 
 group by apiContext, apiCreator, apiCreatorTenantDomain, operatingSystem, browser
 aggregate by requestTimestamp every seconds...years;
 
