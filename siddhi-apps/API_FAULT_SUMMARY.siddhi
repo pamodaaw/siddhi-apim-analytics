@@ -12,7 +12,7 @@ define stream FaultStream(
     apiResourcePath string,
     apiMethod string,
     apiCreator string,
-    userId string,
+    username string,
     userTenantDomain string,
     apiCreatorTenantDomain string,
     hostname string,
