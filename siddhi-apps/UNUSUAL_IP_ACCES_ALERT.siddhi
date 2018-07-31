@@ -1,8 +1,8 @@
 @App:name("UNUSUAL_IP_ACCES_ALERT")
 @App:description("Alerts if an access from a strange ip is detected")
 
-
-define stream Request (meta_clientType string, 
+define stream Request (
+    meta_clientType string, 
     applicationConsumerKey string, 
     applicationName string,
     applicationId string,
@@ -38,10 +38,14 @@ define stream Request (meta_clientType string,
     backendLatency long,
     otherLatency long, 
     gatewayType string,
-    label string);
+    label string
+    );
 
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
+
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define table IPAccessAbnormalityAlert (type string, message string, severity int, ip string, applicationName string, applicationOwner string, username string,tenantDomain string, requestTimestamp long, alertTimestamp long);
 
 
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
@@ -53,21 +57,19 @@ define table IPAccessSummary (username string, applicationConsumerKey string, ip
 define table IPAccessAlertCount (username string, applicationConsumerKey string, requestCount long) ;
 
 @store(type = 'rdbms', datasource = 'APIM_TEST')
-define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+define table AlertStakeholderInfo(userId string, alertType	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 @sink(type='log') 
-define stream TempStream(applicationConsumerKey string , userTenantDomain string , applicationName string, applicationOwner string, username string, requestHostName string, ip string , requestTime long ,lastAccessedDate long, count long);
+define stream TempStream(applicationConsumerKey string , userTenantDomain string , applicationName string, applicationOwner string, username string, requestHostName string, ip string , requestTimestamp long ,lastAccessedDate long, count long);
 
 @sink(type='log')
 define stream NewConsumerKeyStream(username string,applicationConsumerKey string, ip string,lastAccessedDate long, count long );
 
 @sink(type='log') 
-define stream ExistingUserStream(applicationConsumerKey string, userTenantDomain string, applicationName string, applicationOwner string, username string, requestHostName string, ip string, requestTime long, lastAccessedDate long , requestCount long );
+define stream ExistingUserStream(applicationConsumerKey string, userTenantDomain string, applicationName string, applicationOwner string, username string, requestHostName string, ip string, requestTimestamp long, lastAccessedDate long , requestCount long );
 
 @sink(type='log') 
 define stream IPAccessAlertCountStream(username string ,applicationConsumerKey string,requestCount long);
---@sink(type='log') 
---define stream NewIPDetectedStream(username string);
 
 define trigger MinTrigger at every 1 min;
 
@@ -83,21 +85,18 @@ insert into IPAccessAlertCountStream;
 @info(name = 'query1')
 from Request[applicationConsumerKey == IPAccessSummaryStream.applicationConsumerKey]#window.length(1) as api left outer join IPAccessSummary as ais
 on api.applicationConsumerKey == ais.applicationConsumerKey and api.userIp == ais.ip
-select api.applicationConsumerKey as applicationConsumerKey, api.userTenantDomain as userTenantDomain, api.applicationName as applicationName ,  api.applicationOwner as applicationOwner,  api.username as username, api.userIp as requestHostName, ais.ip as ip, api.requestTimestamp as requestTime, ais.lastAccessedDate as lastAccessedDate, count() as count 
+select api.applicationConsumerKey as applicationConsumerKey, api.userTenantDomain as userTenantDomain, api.applicationName as applicationName ,  api.applicationOwner as applicationOwner,  api.username as username, api.userIp as requestHostName, ais.ip as ip, api.requestTimestamp, ais.lastAccessedDate as lastAccessedDate, count() as count 
 insert into TempStream;
-
 
 @info(name = 'query2')
 from Request[not (applicationConsumerKey == IPAccessSummary.applicationConsumerKey in IPAccessSummary)]
 select username, applicationConsumerKey, userIp as ip, requestTimestamp as lastAccessedDate, count() as count
 insert into NewConsumerKeyStream;
 
-
 @info(name = 'query3')
 from NewConsumerKeyStream
 select username, applicationConsumerKey, ip, lastAccessedDate
 insert into IPAccessSummary;
-
 
 -- Adding the alert count
 @info(name = 'query4')
@@ -105,14 +104,11 @@ from NewConsumerKeyStream
 select username, applicationConsumerKey, count as requestCount
 insert into IPAccessAlertCount;
 
-
-
 @info(name = 'query5') 
 from TempStream as ts join IPAccessAlertCount as iaac
 on ts.applicationConsumerKey == iaac.applicationConsumerKey and ts.username == iaac.username
-select ts.applicationConsumerKey as applicationConsumerKey, ts.userTenantDomain, ts.applicationName , ts.applicationOwner , ts.username as username, ts.requestHostName as requestHostName, ts.ip as ip, ts.requestTime as requestTime, ts.lastAccessedDate as lastAccessedDate, (ts.count + iaac.requestCount) as requestCount
+select ts.applicationConsumerKey as applicationConsumerKey, ts.userTenantDomain, ts.applicationName , ts.applicationOwner , ts.username as username, ts.requestHostName as requestHostName, ts.ip as ip, ts.requestTimestamp, ts.lastAccessedDate as lastAccessedDate, (ts.count + iaac.requestCount) as requestCount
 insert into ExistingUserStream;
-
 
 @info(name = 'query6')
 from ExistingUserStream
@@ -121,28 +117,25 @@ update or insert into IPAccessAlertCount
 set IPAccessAlertCount.requestCount = requestCount on 
 IPAccessAlertCount.username == username;
 
-
-
 @info(name = 'query7')
 from ExistingUserStream[ip is null and requestCount > 10]
 select *
 insert into NewIPDetectedStream;
 
-
 @info(name = 'query8')
 from NewIPDetectedStream
-select "UnusualIPAccessAlert" as type, "A request from a new IP detected." as msg, 2 as severity, requestHostName as ip, applicationName, applicationOwner, username, userTenantDomain, requestTime,(time:timestampInMilliseconds()) as alertTimestamp
-insert into AlertIpAccessAbnormality;
+select "UnusualIPAccessAlert" as type, "A request from a new IP detected." as message, 2 as severity, requestHostName as ip, applicationName, applicationOwner, username, userTenantDomain as tenantDomain, requestTimestamp,(time:timestampInMilliseconds()) as alertTimestamp
+insert into AlertIpAccessAbnormalityStream;
 
 @info(name = 'query9')
 from NewIPDetectedStream
-select username, applicationConsumerKey, requestHostName as ip, requestTime as lastAccessedDate
+select username, applicationConsumerKey, requestHostName as ip, requestTimestamp as lastAccessedDate
 insert into IPAccessSummary;
 
 -- Check if the request for the IP is received after the threshold time gap
 @info(name = 'query10')
 from ExistingUserStream[(not (ip is null)) and requestCount > 10]
-select requestHostName, applicationConsumerKey, applicationName, applicationOwner, (requestTime - lastAccessedDate) as timeBetweenAccess, requestTime, username, userTenantDomain, lastAccessedDate
+select requestHostName, applicationConsumerKey, applicationName, applicationOwner, (requestTimestamp - lastAccessedDate) as timeBetweenAccess, requestTimestamp, username, userTenantDomain as tenantDomain, lastAccessedDate
 insert into CheckAbnormalTimeBetweenAccessStream;
 
 @info(name = 'query11')
@@ -152,29 +145,34 @@ insert into AbnormalTimeBetweenAccessStream;
 
 @info(name = 'query12')
 from AbnormalTimeBetweenAccessStream
-select "UnusualIPAccessAlert" as type, "A request from an old IP detected." as msg, 2 as severity, requestHostName as ip, applicationName, applicationOwner, username, userTenantDomain , requestTime,(time:timestampInMilliseconds()) as alertTimestamp
-insert into AlertIpAccessAbnormality;
+select "UnusualIPAccessAlert" as type, "A request from an old IP detected." as message, 2 as severity, requestHostName as ip, applicationName, applicationOwner, username,tenantDomain , requestTimestamp,(time:timestampInMilliseconds()) as alertTimestamp
+insert into AlertIpAccessAbnormalityStream;
 
 -- Send all the alerts to the Global Alert Stream
 @info(name = 'query13')
-from AlertIpAccessAbnormality
-select type, userTenantDomain as tenantDomain, str:concat("A request from a ", ifThenElse(str:contains(msg, 'old'), 'old','new'), " IP (", ip, ") detected by user:" , username,  " using application:", applicationName, " owned by ", applicationOwner, ".") as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
+from AlertIpAccessAbnormalityStream
+select type, tenantDomain, str:concat("A request from a ", ifThenElse(str:contains(message, 'old'), 'old','new'), " IP (", ip, ") detected by user:" , username,  " using application:", applicationName, " owned by ", applicationOwner, ".") as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into AllApimAlert;
+
+from AlertIpAccessAbnormalityStream
+select *
+insert into IPAccessAbnormalityAlert;
+
 
 -- Update the request time for the lastAccessDate
 @info(name = 'query14')
 from CheckAbnormalTimeBetweenAccessStream[timeBetweenAccess > 60]
-select username, applicationConsumerKey, requestHostName as ip, requestTime as lastAccessedDate
+select username, applicationConsumerKey, requestHostName as ip, requestTimestamp as lastAccessedDate
 update or insert into IPAccessSummary
 set IPAccesSummary.lastAccessedDate=lastAccessedDate on
 IPAccessSummary.applicationConsumerKey == applicationConsumerKey and IPAccessSummary.ip == ip;
 
 
-from AlertIpAccessAbnormality#window.length(1) join AlertStakeholderInfo as ASI
-on ((AlertIpAccessAbnormality.applicationOwner == ASI.userId and true == ASI.isSubscriber ) or true == ASI.isAdmin )
-select 'UnusualIPAccessAlert' as type , str:concat("A request from a ", ifThenElse(str:contains(msg, 'old'), 'old','new'), " IP (", ip, ") detected by user:" , AlertIpAccessAbnormality.username,  " using application:", applicationName, " owned by ", applicationOwner, ".") as msg, time:dateFormat(AlertIpAccessAbnormality.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, ASI.email
+from AlertIpAccessAbnormalityStream#window.length(1) join AlertStakeholderInfo as ASI
+on ((AlertIpAccessAbnormalityStream.applicationOwner == ASI.userId and true == ASI.isSubscriber ) or true == ASI.isAdmin )
+select 'UnusualIPAccessAlert' as type , str:concat("A request from a ", ifThenElse(str:contains(message, 'old'), 'old','new'), " IP (", ip, ") detected by user:" , AlertIpAccessAbnormalityStream.username,  " using application:", applicationName, " owned by ", applicationOwner, ".") as msg, time:dateFormat(AlertIpAccessAbnormalityStream.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, ASI.emails
 having  str:contains(ASI.alertType, 'UnusualIPAccessAlert')
-insert into emailAlertStream;
+insert into EmailAlertStream;
 
 
 
