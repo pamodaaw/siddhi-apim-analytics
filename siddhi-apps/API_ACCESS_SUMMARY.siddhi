@@ -49,27 +49,48 @@ define stream ApiUserAgentFilteredStream(apiName string, apiVersion string, apiC
 
 -- API usage per version summary. (Specific to an application)
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+<<<<<<< HEAD:siddhi-apps/API_ACCESS_SUMMARY_DETAILED.siddhi
+define aggregation ApiUsagePerVersionPerApplicationAggregation 
+from apiUsagePerVersionFilteredStream 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, count() as totalRequestCount, sum(quotaExceededValue) as aboveQuotaCount, gatewayType, label 
+group by apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationId 
+=======
 define aggregation ApiVersionPerAppAgg
 from ApiUsagePerVersionFilteredStream
 select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, count() as totalRequestCount, sum(quotaExceededValue) as aboveQuotaCount, gatewayType, label
 group by apiContext, apiHostname, applicationId
+>>>>>>> 7db30f751c7664bfe1c32600f3ebba3c49abcbfa:siddhi-apps/API_ACCESS_SUMMARY.siddhi
 aggregate by requestTimestamp every seconds...years;
 
 -- API usage summary per resource path. (Specific to an application)
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+<<<<<<< HEAD:siddhi-apps/API_ACCESS_SUMMARY_DETAILED.siddhi
+define aggregation ApiUsagePerResourcePathAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, apiResourceTemplate, apiMethod, count() as totalRequestCount, gatewayType, label 
+group by apiContext, apiCreator,apiCreatorTenantDomain, apiHostname, applicationId, apiResourceTemplate, apiMethod 
+=======
 define aggregation ApiResourcePathPerAppAgg
 from Request
 select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, applicationName, apiResourceTemplate, apiMethod, count() as totalRequestCount, gatewayType, label
 group by apiContext, apiHostname, applicationId, apiResourceTemplate, apiMethod
+>>>>>>> 7db30f751c7664bfe1c32600f3ebba3c49abcbfa:siddhi-apps/API_ACCESS_SUMMARY.siddhi
 aggregate by requestTimestamp every seconds...years;
 	
 	
 -- API usage summary per destination.
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+<<<<<<< HEAD:siddhi-apps/API_ACCESS_SUMMARY_DETAILED.siddhi
+define aggregation ApiUsagePerDestinationAggregation 
+from request 
+select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, destination, count() as totalRequestCount, gatewayType, label  
+group by apiContext,  apiHostname, destination 
+=======
 define aggregation ApiPerDestinationAgg
 from Request
 select apiName, apiVersion, apiContext, apiCreator, apiCreatorTenantDomain, apiHostname, destination, count() as totalRequestCount, gatewayType, label
 group by apiContext, apiHostname, destination
+>>>>>>> 7db30f751c7664bfe1c32600f3ebba3c49abcbfa:siddhi-apps/API_ACCESS_SUMMARY.siddhi
 aggregate by requestTimestamp every seconds...years;
 
 -- Overall API usage summary. depends on the user and the application. 
