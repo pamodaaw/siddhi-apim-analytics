@@ -4,19 +4,19 @@
 --@source(type = 'wso2event', wso2.stream.id = 'org.wso2.analytics.apim.alertStakeholderInfo:1.0.0', @map(type = 'wso2event'))
 define stream AlertStakeholderInfoStream (
     userId	string,
-    alertType	string,
-    email	string,
+    alertTypes	string,
+    emails	string,
     isSubscriber	bool,
     isPublisher	bool,
     isAdmin	bool);
 
 @PrimaryKey('userId', 'isSubscriber', 'isPublisher', 'isAdmin')
 @store(type = 'rdbms', datasource = 'APIM_TEST')
-define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+define table AlertStakeholderInfo(userId string, alertTypes	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 -- Data storing logic
 from AlertStakeholderInfoStream 
-select userId, alertType, email, isSubscriber, isPublisher, isAdmin
+select userId, alertTypes, emails, isSubscriber, isPublisher, isAdmin
 update or insert into AlertStakeholderInfo
-set AlertStakeholderInfo.alertType = alertType, AlertStakeholderInfo.email = email
+set AlertStakeholderInfo.alertTypes = alertTypes, AlertStakeholderInfo.emails = emails
 on AlertStakeholderInfo.userId == userId and AlertStakeholderInfo.isPublisher == isSubscriber and AlertStakeholderInfo.isPublisher == isPublisher and AlertStakeholderInfo.isAdmin == isAdmin;
