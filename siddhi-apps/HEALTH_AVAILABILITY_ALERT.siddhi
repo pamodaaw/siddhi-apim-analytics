@@ -1,0 +1,151 @@
+@App:name("HEALTH_AVAILABILITY_ALERT")
+@App:description("Description of the plan")
+
+-- Please refer to https://docs.wso2.com/display/SP400/Quick+Start+Guide on getting started with SP editor. 
+
+--define trigger minTriggerStream at every 1 min;
+
+define stream Request (meta_clientType string, 
+    applicationConsumerKey string, 
+    applicationName string,
+    applicationId string,
+    applicationOwner string, 
+    apiContext string,
+    apiName string,
+    apiVersion string,
+    apiResourcePath string,
+    apiResourceTemplate string,
+    apiMethod string,
+    apiCreator string,
+    apiCreatorTenantDomain string,
+    apiTier string,
+    apiHostname string, 
+    username string,
+    userTenantDomain string,
+    userIp string,
+    userAgent string, 
+    requestTimestamp long,
+    throttledOut bool,
+    responseTime long,
+    serviceTime long,
+    backendTime long,
+    responseCacheHit bool,
+    responseSize long,
+    protocol string,
+    responseCode int,
+    destination string,
+    securityLatency long,
+    throttlingLatency long,
+    requestMediationLatency long,
+    responseMediationLatency long,
+    backendLatency long,
+    otherLatency long, 
+    gatewayType string,
+    label string);
+    
+@PrimaryKey('apiName', 'apiVersion','apiCreator', 'apiCreatorTenantDomain')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define table ApiCreatorAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long);
+
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
+
+@primaryKey('tenantApiVersion')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define table AlertTableResponseInfo (tenantApiVersion string, count int);
+
+@primaryKey('apiName','apiVersion','tenantDomain')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define table ApiAvailabilityTable (apiName string,apiVersion string, tenantDomain string, status string);
+
+@store(type = 'rdbms', datasource = 'APIM_TEST')
+define table AlertStakeholderInfo(userId string, alertType	string, email	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+
+--@sink(type="log")    
+define stream ResponseInfoStream(apiName string, apiVersion string, apiContext string,apiCreator string, apiCreatorTenantDomain string,responseCode int, responseTime long,thresholdResponseTime long );    
+
+--@sink(type="log")
+define stream ApiHealthMonitorAlertStreamTemp(apiName string,apiVersion string,apiCreator string, apiCreatorTenantDomain string,
+ msg string, severity int, alertTimestamp long);
+
+--@sink(type='inMemory', topic='ALL_ALERT', @map(type='passThrough'))
+define stream AllApimAlertSummary (type string, tenantDomain string, msg string, severity int, alertTimestamp long);
+
+
+from Request join ApiCreatorAlertConfiguration 
+on (Request.apiName == ApiCreatorAlertConfiguration.apiName and Request.apiVersion == ApiCreatorAlertConfiguration.apiVersion)
+select Request.apiName,Request.apiVersion,Request.apiContext,Request.apiCreator,Request.apiCreatorTenantDomain,Request.responseCode,Request.responseTime,ApiCreatorAlertConfiguration.thresholdResponseTime
+insert into ResponseInfoStream;
+
+
+partition with (apiContext of ResponseInfoStream)
+begin
+    from every e1=ResponseInfoStream[responseTime>thresholdResponseTime],e2=ResponseInfoStream[responseTime>thresholdResponseTime]+,e3=ResponseInfoStream[responseTime>thresholdResponseTime]+, e4=ResponseInfoStream[responseTime>thresholdResponseTime]+,e5=ResponseInfoStream[responseTime>thresholdResponseTime]
+    select e1.apiName,e1.apiVersion,e1.apiContext,e1.apiCreator,e1.apiCreatorTenantDomain,e1.thresholdResponseTime
+    insert into TempResponseTimeAlertStream;
+end;
+
+from TempResponseTimeAlertStream
+select apiName,apiVersion, ifThenElse(apiCreatorTenantDomain == 'carbon.super', str:concat(apiCreator, "@carbon.super"), apiCreator) as apiCreator, apiCreatorTenantDomain, str:concat('Response time is higher than ' ,thresholdResponseTime, ' ms continuously for 5 or more responses.') as msg, 2 as severity, (time:timestampInMilliseconds()) as alertTimestamp
+insert into ApiHealthMonitorAlertStreamTemp;
+
+
+partition with (apiContext of Request)
+begin
+    from every e1=Request[responseCode>=500 and responseCode<600],e2=Request[responseCode>=500 and responseCode<600]+,e3=Request[responseCode>=500 and responseCode<600]+, e4=Request[responseCode>=500 and responseCode<600]+,e5=Request[responseCode>=500 and responseCode<600]
+    select e1.apiName,e1.apiVersion,e1.apiContext,e1.apiCreator,e1.apiCreatorTenantDomain 
+    insert into TempResponseCodeAlertStream;
+end;
+
+from TempResponseCodeAlertStream
+select apiName, apiVersion, ifThenElse(apiCreatorTenantDomain == 'carbon.super', str:concat(apiCreator, "@carbon.super"), apiCreator) as apiCreator, apiCreatorTenantDomain, 'Server error occurred continuously for 5 or more times.'  as msg, 2 as severity, (time:timestampInMilliseconds()) as alertTimestamp
+insert into ApiHealthMonitorAlertStreamTemp;
+
+
+from ApiHealthMonitorAlertStreamTemp 
+select 'healthAvailabilityPerMin' as type, apiCreatorTenantDomain, str:concat('API:', apiName,' ',apiVersion, '-', msg) as msg , severity, (time:timestampInMilliseconds()) as alertTimestamp
+insert into TempallApimAlertStream;
+
+from TempallApimAlertStream#window.length(1) as TA left outer join AllApimAlertSummary#window.time(30 minute) as AAS
+on TA.msg == AAS.msg
+select TA.type,TA.apiCreatorTenantDomain as tenantDomain,TA.msg,TA.severity,TA.alertTimestamp
+having AAS.msg is null
+insert into AllApimAlertSummary;
+
+
+from AllApimAlertSummary 
+select type,tenantDomain,msg as message,severity,alertTimestamp
+insert into AllApimAlert;
+
+
+from ApiHealthMonitorAlertStreamTemp
+select apiName,apiVersion,apiCreatorTenantDomain as tenantDomain,msg as status
+update or insert into ApiAvailabilityTable 
+set ApiAvailabilityTable.status=status
+on ApiAvailabilityTable.apiName==apiName and ApiAvailabilityTable.apiVersion==apiVersion and ApiAvailabilityTable.tenantDomain==tenantDomain;
+
+
+from Request#window.length(1) as R left outer join ApiHealthMonitorAlertStreamTemp#window.time(5 hours) as AHM
+on R.apiName==AHM.apiName and R.apiVersion==AHM.apiVersion
+select R.apiName,R.apiVersion,R.apiCreatorTenantDomain as tenantDomain,"Available" as status
+having AHM.apiName is null 
+update or insert into ApiAvailabilityTable 
+set ApiAvailabilityTable.status=status
+on ApiAvailabilityTable.apiName==apiName and ApiAvailabilityTable.apiVersion==apiVersion and ApiAvailabilityTable.tenantDomain==tenantDomain;
+
+
+from ApiHealthMonitorAlertStreamTemp#window.length(1) join AlertStakeholderInfo
+on ((ApiHealthMonitorAlertStreamTemp.apiCreator == AlertStakeholderInfo.userId and true == AlertStakeholderInfo.isPublisher ) or true == AlertStakeholderInfo.isAdmin )
+select 'healthAvailabilityPerMin' as type , str:concat('API:', apiName,' ',apiVersion, '-', msg) as msg, time:dateFormat(ApiHealthMonitorAlertStreamTemp.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, AlertStakeholderInfo.email
+having str:contains(AlertStakeholderInfo.alertType, 'healthAvailabilityPerMin')
+insert into EmailAlertStream;
+
+
+
+
+
+
+
+
+
+

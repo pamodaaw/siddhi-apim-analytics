@@ -1,0 +1,32 @@
+@App:name("API_FAULT_SUMMARY")
+@App:description("Defines aggregations for fault stream")
+
+
+define stream faultStream(
+
+    metaClientType string,
+    consumerKey string,
+    api string,
+    apiVersion string,
+    apiContext string,
+    apiResourcePath string,
+    apiMethod string,
+    apiPublisher string,
+    userId string,
+    userTenantDomain string,
+    apiProviderTenantDomain string,
+    hostname string,
+    applicationId string,
+    applicationName string,
+    protocol string,
+    errorCode string,
+    errorMessage string,
+    requestTimeStamp long
+);
+
+@store(type='rdbms', datasource='APIM_ANALYTICS_DB')
+define aggregation faultyAggregation
+from faultStream 
+select api,apiVersion,apiPublisher,apiContext,consumerKey,hostname,applicationName,requestTimeStamp,count() as totalFaultCount
+group by apiContext,apiPublisher,apiProviderTenantDomain,applicationId,hostname
+aggregate by requestTimeStamp every sec...year;

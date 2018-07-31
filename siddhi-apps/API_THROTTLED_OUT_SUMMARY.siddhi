@@ -1,0 +1,26 @@
+@App:name("API_THROTTLED_OUT_SUMMARY")
+@App:description("Defines aggregations for api throttled out stream")
+
+define stream throttledOutStream(
+    metaClientType string,
+    accessToken string,
+    userId string,
+    userTenantDomain string,
+    apiProviderTenantDomain string,
+    api string,
+    apiVersion string,
+    apiPublisher string,
+    apiContext string,
+    applicationId string,
+    applicationName string,
+    throttledOutTimeStamp long,
+    throttledOutReason string
+);
+
+@store(type='rdbms', datasource='APIM_ANALYTICS_DB') 
+define aggregation throttledOutAggregation
+from throttledOutStream
+select api,apiVersion,apiContext,apiPublisher,applicationName,apiProviderTenantDomain,count() as throttledOutCount,throttledOutReason,throttledOutTimeStamp
+group by apiContext,apiPublisher,applicationId,userId,userTenantDomain,apiProviderTenantDomain,throttledOutReason
+aggregate by throttledOutTimeStamp every sec...year;
+
