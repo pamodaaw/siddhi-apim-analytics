@@ -36,11 +36,11 @@ define table AlertStakeholderInfo(userId string, alertType	string, emails	string
 
 define stream TemporarySubscriberStream(apiCreator string,apiName string, apiVersion string,applicationId string,applicationName string, apiCreatorTenantDomain string, userTenantDomain string, subscriber string, numHits long ); 
 
-@sink(type='log') 
-define stream TierLimitHittingAlertStream (subscriber string, apiCreator string, apiName string, applicationId string, applicationName string, apiCreatorTenantDomain string, userTenantDomain string, msg string, severity int, alertTimestamp long);
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
+define table TierLimitHittingAlert (subscriber string, apiCreator string, apiName string, applicationId string, applicationName string, apiCreatorTenantDomain string, userTenantDomain string, msg string, severity int, alertTimestamp long);
 
 @sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
-define stream EmailAlertStream (type string, message	string, alertTimestamp	string, emails	string);
+define stream EmailAlertStream (type string, message string, alertTimestamp	string, emails	string);
 
 define trigger DayTrigger at every 1 days;
 
@@ -110,6 +110,10 @@ insert into AllApimAlert;
 from SuppressedTemporaryUserStream
 select "FrequentTierHittingAlert" as type,userTenantDomain as tenantDomain, str:concat("User ", username, " using the ", applicationName, " application owned by ", subscriber, " frequently crosses the limit set for the user.") as message, 3 as severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into AllApimAlert;
+
+from TierLimitHittingAlertStream
+select *
+insert into TierLimitHittingAlert;
 
 from TierLimitHittingAlertStream#window.length(1) as TL join AlertStakeholderInfo as ASI
 on ((TL.subscriber == ASI.userId and true == ASI.isSubscriber ) or true == ASI.isAdmin )
