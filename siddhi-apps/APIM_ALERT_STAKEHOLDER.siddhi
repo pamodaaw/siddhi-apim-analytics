@@ -11,7 +11,7 @@ define stream AlertStakeholderInfoStream (
     isAdmin	bool);
 
 @PrimaryKey('userId', 'isSubscriber', 'isPublisher', 'isAdmin')
-@store(type = 'rdbms', datasource = 'APIM_TEST')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table AlertStakeholderInfo(userId string, alertTypes	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 -- Data storing logic

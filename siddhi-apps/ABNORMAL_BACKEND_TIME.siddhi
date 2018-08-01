@@ -92,7 +92,7 @@ insert into AbnormalBackendTimeAlert;
 @info(name='customizeEmailMessageGenerateQuery') 
 from AbnormalBackendTimeAlertStream#window.length(1) as A join AlertStakeholderInfo as S
 on ((A.apiCreator == S.userId and true == S.isPublisher ) or true == S.isAdmin )
-select 'AbnormalBackendTime' as type , str:concat('Abnormal backend response time detected for http ', A.apiMethod,' method of resource template:', A.apiResourceTemplate,' in api:',A.apiName,' of tenant domain:',A.apiCreatorTenantDomain,', threshold value:',A.thresholdBackendTime, 'ms.') as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.emails
+select 'AbnormalBackendTime' as type , str:concat('Abnormal backend time detected for http ', A.apiMethod,' method of resource template:', A.apiResourceTemplate,' in api:',A.apiName,' of tenant domain:',A.apiCreatorTenantDomain,', threshold value:',A.thresholdBackendTime, 'ms.') as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.emails
 having  str:contains(S.alertTypes, 'AbnormalBackendTime')
 insert into EmailAlertStream;
 
