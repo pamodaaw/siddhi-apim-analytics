@@ -1,4 +1,4 @@
-@App:name("UNUSUAL_IP_ACCES_ALERT")
+@App:name("APIM_UNUSUAL_IP_ACCES_ALERT")
 @App:description("Alerts if an access from a strange ip is detected")
 
 define stream Request (
@@ -59,20 +59,19 @@ define table IPAccessAlertCount (username string, applicationConsumerKey string,
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table AlertStakeholderInfo(userId string, alertType	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
-@sink(type='log') 
 define stream TempStream(applicationConsumerKey string , userTenantDomain string , applicationName string, applicationOwner string, username string, requestHostName string, ip string , requestTimestamp long ,lastAccessedDate long, count long);
 
 define stream NewConsumerKeyStream(username string,applicationConsumerKey string, ip string,lastAccessedDate long, count long );
 
-@sink(type='log') 
 define stream ExistingUserStream(applicationConsumerKey string, userTenantDomain string, applicationName string, applicationOwner string, username string, requestHostName string, ip string, requestTimestamp long, lastAccessedDate long , requestCount long );
 
 @sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
 define stream EmailAlertStream (type string, message string, alertTimestamp	string, emails	string);
 
-define trigger MinTrigger at every 1 min;
+--define trigger MinTrigger at every 1 min;
 
 --Retrieve Data from IPAccessSummary each minute and passes it to IPAccessSummary stream
+/*
 from MinTrigger right outer join IPAccessSummary
 select username,applicationConsumerKey,ip,lastAccessedDate
 insert into IPAccessSummaryStream;
@@ -80,16 +79,16 @@ insert into IPAccessSummaryStream;
 from MinTrigger right outer join IPAccessAlertCount
 select username,applicationConsumerKey,requestCount
 insert into IPAccessAlertCountStream;
-
+*/
 
 @info(name = 'query1')
-from Request[applicationConsumerKey == IPAccessSummaryStream.applicationConsumerKey]#window.length(1) as api left outer join IPAccessSummary as ais
+from Request[applicationConsumerKey == IPAccessSummary.applicationConsumerKey in IPAccessSummary]#window.length(1) as api left outer join IPAccessSummary as ais
 on api.applicationConsumerKey == ais.applicationConsumerKey and api.userIp == ais.ip
 select api.applicationConsumerKey as applicationConsumerKey, api.userTenantDomain as userTenantDomain, api.applicationName as applicationName ,  api.applicationOwner as applicationOwner,  api.username as username, api.userIp as requestHostName, ais.ip as ip, api.requestTimestamp, ais.lastAccessedDate as lastAccessedDate, count() as count 
 insert into TempStream;
 
 @info(name = 'query2')
-from Request[not (applicationConsumerKey == IPAccessSummaryStream.applicationConsumerKey)]
+from Request[not (applicationConsumerKey == IPAccessSummary.applicationConsumerKey in IPAccessSummary)]
 select username, applicationConsumerKey, userIp as ip, requestTimestamp as lastAccessedDate, count() as count
 insert into NewConsumerKeyStream;
 
@@ -105,7 +104,7 @@ select username, applicationConsumerKey, count as requestCount
 insert into IPAccessAlertCount;
 
 @info(name = 'query5') 
-from TempStream as ts join IPAccessAlertCountStream as iaac
+from TempStream as ts join IPAccessAlertCount as iaac
 on ts.applicationConsumerKey == iaac.applicationConsumerKey and ts.username == iaac.username
 select ts.applicationConsumerKey as applicationConsumerKey, ts.userTenantDomain, ts.applicationName , ts.applicationOwner , ts.username as username, ts.requestHostName as requestHostName, ts.ip as ip, ts.requestTimestamp, ts.lastAccessedDate as lastAccessedDate, (ts.count + iaac.requestCount) as requestCount
 insert into ExistingUserStream;
@@ -118,7 +117,7 @@ set IPAccessAlertCount.requestCount = requestCount on
 IPAccessAlertCount.username == username;
 
 @info(name = 'query7')
-from ExistingUserStream[ip is null and requestCount > 10]
+from ExistingUserStream[ip is null and requestCount > 500]
 select *
 insert into NewIPDetectedStream;
 
@@ -139,7 +138,7 @@ select requestHostName, applicationConsumerKey, applicationName, applicationOwne
 insert into CheckAbnormalTimeBetweenAccessStream;
 
 @info(name = 'query11')
-from CheckAbnormalTimeBetweenAccessStream[timeBetweenAccess > (60)]
+from CheckAbnormalTimeBetweenAccessStream[timeBetweenAccess > (30*24*60*60*1000)]
 select *
 insert into AbnormalTimeBetweenAccessStream;
 
@@ -161,7 +160,7 @@ insert into IPAccessAbnormalityAlert;
 
 -- Update the request time for the lastAccessDate
 @info(name = 'query14')
-from CheckAbnormalTimeBetweenAccessStream[timeBetweenAccess > 60]
+from CheckAbnormalTimeBetweenAccessStream[timeBetweenAccess > 24*60*60*1000]
 select username, applicationConsumerKey, requestHostName as ip, requestTimestamp as lastAccessedDate
 update or insert into IPAccessSummary
 set IPAccesSummary.lastAccessedDate=lastAccessedDate on
