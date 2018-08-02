@@ -1,4 +1,4 @@
-@App:name("API_ALERT_CONFIG")
+@App:name("APIM_ALERT_CONFIGURATION")
 @App:description("Store the alert configurations of each API into two different tables from the two streams published corresponding to alert configurations done by the API creator and the subscriber.")
 
 -- Stream and table definition for the alerts configured by the API creator

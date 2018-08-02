@@ -1,4 +1,4 @@
-@App:name("ABNORMAL_REQUEST_PATTERN")
+@App:name("APIM_ABNORMAL_REQUEST_PATTERN")
 
 @App:description("Identifies the API requests wchich are outside the normal access pattern and add to AllAlertStream and AbormalRequestPatternStream")
 

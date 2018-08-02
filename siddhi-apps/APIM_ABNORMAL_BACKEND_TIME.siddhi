@@ -1,4 +1,4 @@
-@App:name("ABNORMAL_RESPONSE_TIME")
+@App:name("APIM_ABNORMAL_RESPONSE_TIME")
 @App:description("Identifies the API requests with abnormal backend time and add to AllAlertStream and AbnormalBackendTimeAlertStream")
 
 @source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.request:3.0.0', @map(type = 'wso2event'))
@@ -42,7 +42,7 @@ define stream Request (meta_clientType string,
     
 define stream AbnormalBackendTimeAlertStream( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long, message string, severity int,alertTimestamp long);
 
-@sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
+@sink(type="inMemory", topic="APIM_EMAIL_NOTIFICATION", @map(type='passThrough'))
 define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, emails	string);
 
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')

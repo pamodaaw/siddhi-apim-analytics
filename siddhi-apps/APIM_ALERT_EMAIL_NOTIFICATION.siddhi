@@ -1,7 +1,7 @@
 @App:name("APIM_ALERT_EMAIL_NOTIFICATION")
 @App:description('Send email to all the subscribers of a particular alert') 
 
-@source(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
+@source(type="inMemory", topic="APIM_EMAIL_NOTIFICATION", @map(type='passThrough'))
 define stream EmailAlertStream (
     type	string, 
     message	string, 

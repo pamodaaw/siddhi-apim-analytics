@@ -1,4 +1,4 @@
-@App:name("ABNORMAL_RESPONSE_TIME")
+@App:name("APIM_ABNORMAL_RESPONSE_TIME")
 @App:description("Identifies the API requests with abnormal response time and add to AllAlertStream and AbnormalResponseTimeAlertStream")
 
 @source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.request:3.0.0', @map(type = 'wso2event'))
