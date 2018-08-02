@@ -29,4 +29,4 @@ define aggregation ApiFaultyInvocationAgg
 from FaultStream 
 select apiName,apiVersion,apiCreator,apiCreatorTenantDomain,apiContext,applicationConsumerKey,hostname,applicationId,applicationName,requestTimeStamp,count() as totalFaultCount
 group by apiContext,apiCreator,apiCreatorTenantDomain,applicationId,hostname
-aggregate by requestTimeStamp every sec...year;
+aggregate by requestTimeStamp every seconds...year;

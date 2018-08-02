@@ -26,5 +26,5 @@ define aggregation ApiThrottledOutAgg
 from ThrottledOutStream
 select apiName,apiVersion,apiContext,apiCreator,apiCreatorTenantDomain,username,userTenantDomain,applicationId,applicationName,subscriber,count() as throttledOutCount,throttledOutReason,gatewayType
 group by apiContext,applicationId,throttledOutReason
-aggregate by throttledOutTimeStamp every sec...year;
+aggregate by throttledOutTimeStamp every seconds...year;
 

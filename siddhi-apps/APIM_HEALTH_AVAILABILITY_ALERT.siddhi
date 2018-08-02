@@ -1,4 +1,4 @@
-@App:name("HEALTH_AVAILABILITY_ALERT")
+@App:name("APIM_HEALTH_AVAILABILITY_ALERT")
 @App:description("Description of the plan")
 
 -- Please refer to https://docs.wso2.com/display/SP400/Quick+Start+Guide on getting started with SP editor. 
