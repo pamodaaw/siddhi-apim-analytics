@@ -59,13 +59,13 @@ define table AlertTableResponseInfo (tenantApiVersion string, count int);
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table ApiAvailabilityTable (apiName string,apiVersion string, tenantDomain string, status string);
 
-@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DBT')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table AlertStakeholderInfo(userId string, alertType	string, emails string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 --@sink(type="log")    
 define stream ResponseInfoStream(apiName string, apiVersion string, apiContext string,apiCreator string, apiCreatorTenantDomain string,responseCode int, responseTime long,thresholdResponseTime long );    
 
-@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DBT')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table ApiHealthMonitorAlert(apiName string,apiVersion string,apiCreator string, apiCreatorTenantDomain string,
  message string, severity int, alertTimestamp long);
 

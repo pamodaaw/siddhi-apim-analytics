@@ -56,23 +56,23 @@ define table IPAccessSummary (username string, applicationConsumerKey string, ip
 @PrimaryKey('applicationConsumerKey','username')
 define table IPAccessAlertCount (username string, applicationConsumerKey string, requestCount long) ;
 
-@store(type = 'rdbms', datasource = 'APIM_TEST')
+@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
 define table AlertStakeholderInfo(userId string, alertType	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 @sink(type='log') 
 define stream TempStream(applicationConsumerKey string , userTenantDomain string , applicationName string, applicationOwner string, username string, requestHostName string, ip string , requestTimestamp long ,lastAccessedDate long, count long);
 
-@sink(type='log')
 define stream NewConsumerKeyStream(username string,applicationConsumerKey string, ip string,lastAccessedDate long, count long );
 
 @sink(type='log') 
 define stream ExistingUserStream(applicationConsumerKey string, userTenantDomain string, applicationName string, applicationOwner string, username string, requestHostName string, ip string, requestTimestamp long, lastAccessedDate long , requestCount long );
 
-@sink(type='log') 
-define stream IPAccessAlertCountStream(username string ,applicationConsumerKey string,requestCount long);
+@sink(type="inMemory", topic="EMAIL_NOTIFICATION", @map(type='passThrough'))
+define stream EmailAlertStream (type string, message string, alertTimestamp	string, emails	string);
 
 define trigger MinTrigger at every 1 min;
 
+--Retrieve Data from IPAccessSummary each minute and passes it to IPAccessSummary stream
 from MinTrigger right outer join IPAccessSummary
 select username,applicationConsumerKey,ip,lastAccessedDate
 insert into IPAccessSummaryStream;
@@ -89,7 +89,7 @@ select api.applicationConsumerKey as applicationConsumerKey, api.userTenantDomai
 insert into TempStream;
 
 @info(name = 'query2')
-from Request[not (applicationConsumerKey == IPAccessSummary.applicationConsumerKey in IPAccessSummary)]
+from Request[not (applicationConsumerKey == IPAccessSummaryStream.applicationConsumerKey)]
 select username, applicationConsumerKey, userIp as ip, requestTimestamp as lastAccessedDate, count() as count
 insert into NewConsumerKeyStream;
 
@@ -105,7 +105,7 @@ select username, applicationConsumerKey, count as requestCount
 insert into IPAccessAlertCount;
 
 @info(name = 'query5') 
-from TempStream as ts join IPAccessAlertCount as iaac
+from TempStream as ts join IPAccessAlertCountStream as iaac
 on ts.applicationConsumerKey == iaac.applicationConsumerKey and ts.username == iaac.username
 select ts.applicationConsumerKey as applicationConsumerKey, ts.userTenantDomain, ts.applicationName , ts.applicationOwner , ts.username as username, ts.requestHostName as requestHostName, ts.ip as ip, ts.requestTimestamp, ts.lastAccessedDate as lastAccessedDate, (ts.count + iaac.requestCount) as requestCount
 insert into ExistingUserStream;
@@ -170,7 +170,7 @@ IPAccessSummary.applicationConsumerKey == applicationConsumerKey and IPAccessSum
 
 from AlertIpAccessAbnormalityStream#window.length(1) join AlertStakeholderInfo as ASI
 on ((AlertIpAccessAbnormalityStream.applicationOwner == ASI.userId and true == ASI.isSubscriber ) or true == ASI.isAdmin )
-select 'UnusualIPAccessAlert' as type , str:concat("A request from a ", ifThenElse(str:contains(message, 'old'), 'old','new'), " IP (", ip, ") detected by user:" , AlertIpAccessAbnormalityStream.username,  " using application:", applicationName, " owned by ", applicationOwner, ".") as msg, time:dateFormat(AlertIpAccessAbnormalityStream.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, ASI.emails
+select 'UnusualIPAccessAlert' as type , str:concat("A request from a ", ifThenElse(str:contains(message, 'old'), 'old','new'), " IP (", ip, ") detected by user:" , AlertIpAccessAbnormalityStream.username,  " using application:", applicationName, " owned by ", applicationOwner, ".") as message, time:dateFormat(AlertIpAccessAbnormalityStream.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, ASI.emails
 having  str:contains(ASI.alertType, 'UnusualIPAccessAlert')
 insert into EmailAlertStream;
 
