@@ -1,45 +1,9 @@
 @App:name("APIM_ABNORMAL_RESPONSE_TIME")
 @App:description("Identifies the API requests with abnormal backend time and add to AllAlertStream and AbnormalBackendTimeAlertStream")
 
-@source(type = 'wso2event', wso2.stream.id = 'org.wso2.apimgt.statistics.request:3.0.0', @map(type = 'wso2event'))
-define stream Request (meta_clientType string, 
-    applicationConsumerKey string, 
-    applicationName string,
-    applicationId string,
-    applicationOwner string, 
-    apiContext string,
-    apiName string,
-    apiVersion string,
-    apiResourcePath string,
-    apiResourceTemplate string,
-    apiMethod string,
-    apiCreator string,
-    apiCreatorTenantDomain string,
-    apiTier string,
-    apiHostname string, 
-    username string,
-    userTenantDomain string,
-    userIp string,
-    userAgent string, 
-    requestTimestamp long,
-    throttledOut bool,
-    responseTime long,
-    serviceTime long,
-    backendTime long,
-    responseCacheHit bool,
-    responseSize long,
-    protocol string,
-    responseCode int,
-    destination string,
-    securityLatency long,
-    throttlingLatency long,
-    requestMediationLatency long,
-    responseMediationLatency long,
-    backendLatency long,
-    otherLatency long, 
-    gatewayType string,
-    label string);
-    
+@source(type='inMemory' , topic='APIM_REQUEST')
+define stream Request (meta_clientType string, applicationConsumerKey string, applicationName string, applicationId string, applicationOwner string, apiContext string,apiName string, apiVersion string, apiResourcePath string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, apiTier string, apiHostname string, username string, userTenantDomain string, userIp string, userAgent string, requestTimestamp long, throttledOut bool, responseTime long, serviceTime long, backendTime long, responseCacheHit bool, responseSize long, protocol string, responseCode int, destination string, securityLatency long, throttlingLatency long, requestMediationLatency long, responseMediationLatency long, backendLatency long, otherLatency long, gatewayType string, label string);  
+
 define stream AbnormalBackendTimeAlertStream( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long, message string, severity int,alertTimestamp long);
 
 @sink(type="inMemory", topic="APIM_EMAIL_NOTIFICATION", @map(type='passThrough'))
