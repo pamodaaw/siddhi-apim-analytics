@@ -1,36 +1,27 @@
 @App:name("APIM_ABNORMAL_RESPONSE_TIME")
 @App:description("Identifies the API requests with abnormal backend time and add to AllAlertStream and AbnormalBackendTimeAlertStream")
 
-@source(type='inMemory' , topic='APIM_REQUEST')
-define stream Request (meta_clientType string, applicationConsumerKey string, applicationName string, applicationId string, applicationOwner string, apiContext string,apiName string, apiVersion string, apiResourcePath string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, apiTier string, apiHostname string, username string, userTenantDomain string, userIp string, userAgent string, requestTimestamp long, throttledOut bool, responseTime long, serviceTime long, backendTime long, responseCacheHit bool, responseSize long, protocol string, responseCode int, destination string, securityLatency long, throttlingLatency long, requestMediationLatency long, responseMediationLatency long, backendLatency long, otherLatency long, gatewayType string, label string);  
+@source(type ='inMemory', topic = 'APIM_REQUEST_ALERT_INFO')
+define stream RequestAlertInfoStream (apiContext string,apiName string, apiVersion string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, requestTimestamp long, responseTime long, backendTime long, thresholdBackendTime long, thresholdResponseTime long );
 
 define stream AbnormalBackendTimeAlertStream( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long, message string, severity int,alertTimestamp long);
 
 @sink(type="inMemory", topic="APIM_EMAIL_NOTIFICATION", @map(type='passThrough'))
 define stream EmailAlertStream (type	string, message	string, alertTimestamp	string, emails	string);
 
+@PrimaryKey('userId', 'isSubscriber', 'isPublisher', 'isAdmin')
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
-define table AlertStakeholderInfo(userId string, alertTypes	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
+define table ApimAlertStakeholderInfo(userId string, alertTypes	string, emails	string, isSubscriber bool, isPublisher	bool, isAdmin	bool);
 
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
-define table ApiCreatorAlertConfiguration (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, thresholdResponseTime long, thresholdBackendTime long);
+define table ApimAllAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
 
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
-define table AllApimAlert (type string, tenantDomain string, message string, severity int, alertTimestamp long);
-
-@store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
-define table AbnormalBackendTimeAlert (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long,
+define table ApimAbnormalBackendTimeAlert (apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long,
     message string, severity int, alertTimestamp long);
 
-@info(name = 'configurationInfoRetrieveQuery')
-from Request as R join ApiCreatorAlertConfiguration as C
-on(R.apiName == C.apiName and R.apiVersion == C.apiVersion and R.apiCreatorTenantDomain == C.apiCreatorTenantDomain )
-select R.apiName, R.apiVersion, ifThenElse(R.apiCreatorTenantDomain == 'carbon.super', str:concat(R.apiCreator, "@carbon.super"), R.apiCreator) as apiCreator, R.apiCreatorTenantDomain, 
-    R.backendTime, R.apiResourceTemplate, R.apiMethod, C.thresholdBackendTime
-insert into BackendTimeInfoStream;
-
 @info(name = 'backendTimeExceedFilterQuery')
-from BackendTimeInfoStream[backendTime > thresholdBackendTime and thresholdBackendTime > 0]
+from RequestAlertInfoStream[backendTime > thresholdBackendTime and thresholdBackendTime > 0]
 select apiName, apiVersion, apiCreator, apiCreatorTenantDomain, apiResourceTemplate, apiMethod, backendTime, thresholdBackendTime , 
     'Abnormal backend time detected.' as message, 3 as severity, (time:timestampInMilliseconds()) as alertTimestamp
 insert into AbnormalBackendTimeAlertStreamTemp;
@@ -46,15 +37,15 @@ insert into AbnormalBackendTimeAlertStream;
 @info(name = 'commonAlertDabaseInsertQuery')
 from AbnormalBackendTimeAlertStream
 select 'AbnormalBackendTime' as type, apiCreatorTenantDomain as tenantDomain, str:concat('Abnormal backend time detected for http ',apiMethod,' method of resource template:',apiResourceTemplate,' in api:', apiName,' of tenant domain:',apiCreatorTenantDomain,', threshold value:',thresholdBackendTime, 'ms.') as message, severity, (time:timestampInMilliseconds()) as alertTimestamp
-insert into AllApimAlert;
+insert into ApimAllAlert;
 
 @info(name='dbInsertQuery') 
 from AbnormalBackendTimeAlertStream
 select *
-insert into AbnormalBackendTimeAlert;
+insert into ApimAbnormalBackendTimeAlert;
 
 @info(name='customizeEmailMessageGenerateQuery') 
-from AbnormalBackendTimeAlertStream#window.length(1) as A join AlertStakeholderInfo as S
+from AbnormalBackendTimeAlertStream#window.length(1) as A join ApimAlertStakeholderInfo as S
 on ((A.apiCreator == S.userId and true == S.isPublisher ) or true == S.isAdmin )
 select 'AbnormalBackendTime' as type , str:concat('Abnormal backend time detected for http ', A.apiMethod,' method of resource template:', A.apiResourceTemplate,' in api:',A.apiName,' of tenant domain:',A.apiCreatorTenantDomain,', threshold value:',A.thresholdBackendTime, 'ms.') as message, time:dateFormat(A.alertTimestamp,'yyyy-MM-dd HH:mm:ss') as alertTimestamp, S.emails
 having  str:contains(S.alertTypes, 'AbnormalBackendTime')

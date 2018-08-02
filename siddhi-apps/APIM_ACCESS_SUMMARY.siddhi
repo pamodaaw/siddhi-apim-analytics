@@ -2,7 +2,7 @@
 @App:description('Do aggregations to the request events and store in the database.')
 
 -- Streams
-@sink(type='inMemory' , topic='APIM_REQUEST')
+@source(type='inMemory' , topic='APIM_REQUEST')
 define stream Request (meta_clientType string, applicationConsumerKey string, applicationName string, applicationId string, applicationOwner string, apiContext string,apiName string, apiVersion string, apiResourcePath string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, apiTier string, apiHostname string, username string, userTenantDomain string, userIp string, userAgent string, requestTimestamp long, throttledOut bool, responseTime long, serviceTime long, backendTime long, responseCacheHit bool, responseSize long, protocol string, responseCode int, destination string, securityLatency long, throttlingLatency long, requestMediationLatency long, responseMediationLatency long, backendLatency long, otherLatency long, gatewayType string, label string);
 
 define stream ApiUsagePerVersionFilteredStream (apiName string, apiVersion string, apiContext string, apiCreator string, apiCreatorTenantDomain string, apiHostname string, applicationId string, applicationName string, quotaExceededValue int, requestTimestamp long, gatewayType string, label string);
