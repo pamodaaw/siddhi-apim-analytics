@@ -45,7 +45,7 @@ define stream InComingRequestStream (meta_clientType string,
 define stream Request (meta_clientType string, applicationConsumerKey string, applicationName string, applicationId string, applicationOwner string, apiContext string,apiName string, apiVersion string, apiResourcePath string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, apiTier string, apiHostname string, username string, userTenantDomain string, userIp string, userAgent string, requestTimestamp long, throttledOut bool, responseTime long, serviceTime long, backendTime long, responseCacheHit bool, responseSize long, protocol string, responseCode int, destination string, securityLatency long, throttlingLatency long, requestMediationLatency long, responseMediationLatency long, backendLatency long, otherLatency long, gatewayType string, label string);
 
 @sink(type ='inMemory', topic = 'APIM_REQUEST_ALERT_INFO')
-define stream RequestAlertInfoStream (apiContext string,apiName string, apiVersion string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, requestTimestamp long, responseTime long, backendTime long, thresholdBackendTime long, thresholdResponseTime long );
+define stream RequestAlertInfoStream (apiContext string,apiName string, apiVersion string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, requestTimestamp long, responseTime long, backendTime long, thresholdBackendTime long, thresholdResponseTime long,responseCode int );
 
 @PrimaryKey('apiName', 'apiVersion','apiCreator', 'apiCreatorTenantDomain')
 @store(type = 'rdbms', datasource = 'APIM_ANALYTICS_DB')
@@ -80,5 +80,12 @@ insert into Request;
 @info(name = 'creatorConfigurationInfoRetrievQuery')
 from Request as R join ApiCreatorAlertConfigurationInMemoryTable as C
 on(R.apiName == C.apiName and R.apiVersion == C.apiVersion and R.apiCreatorTenantDomain == C.apiCreatorTenantDomain )
-select R.apiContext, R.apiName, R.apiVersion,  R.apiResourceTemplate, R.apiMethod, ifThenElse(R.apiCreatorTenantDomain == 'carbon.super', str:concat(R.apiCreator, "@carbon.super"), R.apiCreator) as apiCreator, R.apiCreatorTenantDomain, R.requestTimestamp, R.responseTime, R.backendTime, C.thresholdBackendTime, C.thresholdResponseTime
+select R.apiContext, R.apiName, R.apiVersion,  R.apiResourceTemplate, R.apiMethod, ifThenElse(R.apiCreatorTenantDomain == 'carbon.super', str:concat(R.apiCreator, "@carbon.super"), R.apiCreator) as apiCreator, R.apiCreatorTenantDomain, R.requestTimestamp, R.responseTime, R.backendTime, C.thresholdBackendTime, C.thresholdResponseTime,R.responseCode
 insert into RequestAlertInfoStream;
+
+
+
+
+
+
+

@@ -2,7 +2,7 @@
 @App:description("Identifies the API requests with abnormal backend time and add to AllAlertStream and AbnormalBackendTimeAlertStream")
 
 @source(type ='inMemory', topic = 'APIM_REQUEST_ALERT_INFO')
-define stream RequestAlertInfoStream (apiContext string,apiName string, apiVersion string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, requestTimestamp long, responseTime long, backendTime long, thresholdBackendTime long, thresholdResponseTime long );
+define stream RequestAlertInfoStream (apiContext string,apiName string, apiVersion string, apiResourceTemplate string, apiMethod string, apiCreator string, apiCreatorTenantDomain string, requestTimestamp long, responseTime long, backendTime long, thresholdBackendTime long, thresholdResponseTime long,responseCode int );
 
 define stream AbnormalBackendTimeAlertStream( apiName string, apiVersion string, apiCreator string, apiCreatorTenantDomain string, apiResourceTemplate string, apiMethod string, backendTime long, thresholdBackendTime long, message string, severity int,alertTimestamp long);
 
