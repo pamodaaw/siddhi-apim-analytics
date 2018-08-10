@@ -83,9 +83,3 @@ on(R.apiName == C.apiName and R.apiVersion == C.apiVersion and R.apiCreatorTenan
 select R.apiContext, R.apiName, R.apiVersion,  R.apiResourceTemplate, R.apiMethod, ifThenElse(R.apiCreatorTenantDomain == 'carbon.super', str:concat(R.apiCreator, "@carbon.super"), R.apiCreator) as apiCreator, R.apiCreatorTenantDomain, R.requestTimestamp, R.responseTime, R.backendTime, C.thresholdBackendTime, C.thresholdResponseTime,R.responseCode
 insert into RequestAlertInfoStream;
 
-
-
-
-
-
-
